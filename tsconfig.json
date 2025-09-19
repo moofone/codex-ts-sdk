@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["ES2022"],
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "typeRoots": [
+      "./node_modules/@types",
+      "../workflow-manager/node_modules/@types"
+    ],
+    "strict": true,
+    "noEmit": true,
+    "rootDir": "./",
+    "outDir": "dist/esm",
+    "esModuleInterop": false,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": false,
+    "useUnknownInCatchVariables": true
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts", "examples/**/*.ts"],
+  "exclude": ["dist", "node_modules"]
+}

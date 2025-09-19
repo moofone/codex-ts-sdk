@@ -1,0 +1,75 @@
+{
+  "name": "codex-ts-sdk",
+  "version": "0.0.1",
+  "description": "TypeScript client for Codex native runtime",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/cjs/src/index.js",
+  "module": "./dist/esm/src/index.js",
+  "types": "./dist/types/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/src/index.d.ts",
+      "import": "./dist/esm/src/index.js",
+      "require": "./dist/cjs/src/index.js"
+    },
+    "./bindings": {
+      "types": "./dist/types/src/bindings/index.d.ts",
+      "import": "./dist/esm/src/bindings/index.js",
+      "require": "./dist/cjs/src/bindings/index.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "native/",
+    "docs/",
+    "examples/",
+    "scripts/",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types && node scripts/write-cjs-package-json.cjs",
+    "build:esm": "tsc -p tsconfig.build.json",
+    "build:cjs": "tsc -p tsconfig.build.cjs.json",
+    "build:types": "tsc -p tsconfig.types.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "coverage": "vitest run --coverage",
+    "build:native": "napi build --platform",
+    "package": "npm run build && npm run build:native",
+    "docs": "typedoc"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^3.2.0",
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^8.43.0",
+    "@typescript-eslint/parser": "^8.43.0",
+    "@vitest/ui": "^3.2.4",
+    "eslint": "^9.35.0",
+    "typedoc": "^0.25.13",
+    "typescript": "^5.3.0",
+    "vitest": "^3.2.4"
+  },
+  "typesVersions": {
+    "*": {
+      "bindings": [
+        "dist/types/src/bindings/index.d.ts"
+      ],
+      "bindings/*": [
+        "dist/types/src/bindings/*"
+      ],
+      "*": [
+        "dist/types/src/*"
+      ]
+    }
+  }
+}
