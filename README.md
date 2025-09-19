@@ -61,25 +61,140 @@ your deployment requires a different risk profile.
 
 ## Environment Setup
 
-1. **Install prerequisites**
-   - Node.js >= 18 and npm (or pnpm/yarn)
-   - Rust toolchain installed via <https://www.rust-lang.org/tools/install> (use the default `stable` channel)
-   - Platform build tools (required by Cargo and `@napi-rs/cli` to compile the native binding):
-     - macOS – Xcode Command Line Tools (`xcode-select --install`)
-     - Linux – `build-essential`, `python3`, `pkg-config`, and OpenSSL headers
-     - Windows – "Desktop development with C++" workload for Visual Studio Build Tools
-2. **Build the Codex runtime assets**
-   - Clone the upstream repo: `git clone https://github.com/openai/codex.git`
-   - Enter the workspace: `cd codex/codex-rs`
-   - Compile the runtime: `cargo build --release`
-   - Copy or symlink the resulting assets (for example from `target/release`) into your preferred directory and set `CODEX_HOME` to that path. The SDK defaults to `~/.codex`, so many setups simply copy the assets there.
-3. **Compile the Node binding**
-   - From this SDK repository run `npm install` to fetch dependencies (including `@napi-rs/cli`).
-   - Run `npm run build:native` to build `native/codex-napi/index.node` against the pinned `codex-rs` revision. See [Native Module Internals](#native-module-internals) if you need to point the build at a different checkout.
-4. **Wire up the client**
-   - Export `CODEX_HOME` (or pass `codexHome`) so the SDK can find the assets you staged in step 2.
-   - Review sandbox and approval policies before connecting; the defaults allow workspace writes only and rely on Codex to request approvals.
-   - If you compiled a custom N-API binary, provide its location via `nativeModulePath` when creating the client.
+This SDK requires two components:
+- **Codex runtime assets**: The Rust-based Codex runtime binaries (built from `codex-rs`)
+- **Native Node.js binding**: The N-API module that connects Node.js to the Rust runtime (in `native/codex-napi` of this repo)
+
+### Environment Variables
+
+```bash
+# Set these to your repository paths:
+export CODEX_TS_SDK_ROOT=/path/to/codex-ts-sdk     # This TypeScript SDK repo
+export CODEX_RUST_ROOT=/path/to/codex              # The cloned Codex Rust repo
+export CODEX_HOME=$CODEX_RUST_ROOT/codex-rs/target/release  # Or ~/.codex if you copied there
+```
+
+### Prerequisites
+
+- Node.js >= 18 and npm (or pnpm/yarn)
+- Rust toolchain installed via <https://www.rust-lang.org/tools/install> (use the default `stable` channel)
+- Platform build tools (required by Cargo and `@napi-rs/cli` to compile the native binding):
+  - **macOS** – Xcode Command Line Tools (`xcode-select --install`)
+  - **Linux** – `build-essential`, `python3`, `pkg-config`, and OpenSSL headers
+  - **Windows** – "Desktop development with C++" workload for Visual Studio Build Tools
+
+### Quick Setup
+
+```bash
+# After setting environment variables, in this SDK repository:
+cd $CODEX_TS_SDK_ROOT
+npm run setup
+```
+
+This setup script will:
+1. Check for Codex runtime assets at `$CODEX_HOME`
+2. Install dependencies
+3. Build the TypeScript SDK
+4. Build the native N-API binding for your platform
+5. Verify the setup
+
+If you don't have Codex runtime assets yet, the script will provide instructions for building them.
+
+### Manual Setup Steps
+
+<details>
+<summary>Click to expand manual setup instructions</summary>
+
+#### 1. Check for existing Codex runtime assets
+
+If you already have Codex runtime assets in `~/.codex` (the default location), skip to step 3. Otherwise, continue to step 2.
+
+#### 2. Build the Codex runtime assets (if needed)
+
+```bash
+# Clone the Codex Rust repository
+git clone https://github.com/openai/codex.git $CODEX_RUST_ROOT
+cd $CODEX_RUST_ROOT/codex-rs
+
+# Build the runtime (all platforms)
+cargo build --release
+
+# Option 1: Use directly from build location
+export CODEX_HOME=$CODEX_RUST_ROOT/codex-rs/target/release
+
+# Option 2: Copy to ~/.codex
+mkdir -p ~/.codex
+cp -r target/release/* ~/.codex/
+export CODEX_HOME=~/.codex
+```
+
+#### 3. Build the SDK and its native binding
+
+**Important:** The `native/codex-napi` directory contains the Rust source code for the N-API binding. You MUST compile it for your platform.
+
+##### Step 3a: Build TypeScript SDK (All Platforms)
+```bash
+cd $CODEX_TS_SDK_ROOT  # Or cd %CODEX_TS_SDK_ROOT% on Windows CMD
+
+# Install dependencies
+npm install
+
+# Build the TypeScript SDK
+npm run build
+```
+
+##### Step 3b: Build Native Binding (Platform-Specific)
+
+The native binding MUST be built from source. This creates `native/codex-napi/index.node` for your platform.
+
+**macOS/Linux:**
+```bash
+cd $CODEX_TS_SDK_ROOT
+npm run build:native
+# Verify: Should create native/codex-napi/index.node
+ls -la native/codex-napi/index.node
+```
+
+**Windows (PowerShell - Recommended):**
+```powershell
+cd $env:CODEX_TS_SDK_ROOT
+
+# REQUIRED: Set Cargo to use git CLI (fixes dependency fetching)
+$env:CARGO_NET_GIT_FETCH_WITH_CLI = "true"
+
+# Option 1: Use npm script
+npm run build:native
+
+# Option 2: Build manually if npm script fails
+cd native\codex-napi
+npx napi build --platform --release --target x86_64-pc-windows-msvc
+
+# Verify: Should create native\codex-napi\index.node
+dir native\codex-napi\index.node
+```
+
+**Windows (Git Bash/WSL):**
+```bash
+cd $CODEX_TS_SDK_ROOT
+export CARGO_NET_GIT_FETCH_WITH_CLI=true
+npm run build:native
+# Verify: Should create native/codex-napi/index.node
+ls -la native/codex-napi/index.node
+```
+
+**Common Issues:**
+- **"No crate found"**: You're not in the SDK root directory. The `native/codex-napi/` folder must exist.
+- **Windows build fails**: Must use "Developer PowerShell for VS" or "x64 Native Tools Command Prompt for VS"
+- **"native/codex-napi not found"**: The repository is incomplete. Re-clone or ensure `native/` folder exists.
+- **Git fetch errors**: On Windows, ensure `CARGO_NET_GIT_FETCH_WITH_CLI=true` is set.
+
+</details>
+
+### Configure the client
+
+- Set `CODEX_HOME` environment variable to your runtime assets location (defaults to `~/.codex`)
+- Review sandbox and approval policies before connecting; the defaults allow workspace writes only and rely on Codex to request approvals
+- If you built a custom N-API binary, provide its location via `nativeModulePath` when creating the client
 
 ## Examples
 

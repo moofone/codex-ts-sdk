@@ -11,7 +11,9 @@ lerna-debug.log*
 dist/
 coverage/
 .vitest/
-native/
+*.node
+native/prebuilt/
+native/codex-napi/target/
 
 # TypeScript
 *.tsbuildinfo
