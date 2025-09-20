@@ -5,10 +5,13 @@ import { createRequire } from 'module';
 import type { PartialCodexLogger } from '../utils/logger';
 import { log } from '../utils/logger';
 
-const moduleUrl = (() => {
+export function resolveModuleUrl(
+  fnCtor: typeof Function = Function,
+  dir?: string,
+): string {
   try {
     // eslint-disable-next-line @typescript-eslint/no-implied-eval
-    const fn = Function(`
+    const fn = fnCtor(`
       try { return import.meta.url; }
       catch (err) { return undefined; }
     `) as () => unknown;
@@ -20,12 +23,18 @@ const moduleUrl = (() => {
     // ignore and fall back to __dirname
   }
 
-  if (typeof __dirname === 'string') {
-    return pathToFileURL(__dirname).href;
+  if (dir) {
+    return pathToFileURL(dir).href;
   }
 
   return pathToFileURL(process.cwd()).href;
-})();
+}
+
+export function normalizeDirectory(dir: unknown): string | undefined {
+  return typeof dir === 'string' ? dir : undefined;
+}
+
+const moduleUrl = resolveModuleUrl(Function, normalizeDirectory(__dirname));
 
 const requireFromMeta = createRequire(moduleUrl);
 

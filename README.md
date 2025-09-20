@@ -59,6 +59,25 @@ By default the client uses a `workspace-write` sandbox (no network access) and
 relies on Codex to request approval (`on-request`). Override those policies if
 your deployment requires a different risk profile.
 
+## CodexClient API
+
+The `CodexClient` surface mirrors the Codex native protocol while providing
+TypeScript-friendly ergonomics.
+
+| Method | Summary |
+| --- | --- |
+| `connect()` | Loads the native module and establishes a Codex connection. Safe to call repeatedly; subsequent calls no-op once initialised. |
+| `createConversation(options)` | Starts a new conversation session, closing any previous session before initialising a fresh handle. |
+| `sendMessage(text, { images })` | Sends a plain text turn along with optional local image attachments using the lightweight `UserInput` op. |
+| `sendUserTurn(text, options)` | Issues a full `UserTurn` op, allowing custom item payloads, sandbox and approval policies, and model overrides. Effort automatically resolves using registry defaults when not provided. |
+| `interruptConversation()` | Emits the `Interrupt` op, signalling Codex to halt the current run. |
+| `respondToExecApproval(id, decision)` | Approves or rejects an execution request via the `ExecApproval` op. |
+| `respondToPatchApproval(id, decision)` | Approves or rejects a patch request via the `PatchApproval` op. |
+| `events(signal?)` | Returns an async iterator of streamed Codex events. The iterator cleans up listeners when returned, thrown, or aborted via the optional signal. |
+| `close()` | Gracefully shuts down the active session and event loop. Safe to call even when no session is active. |
+| `testModelAvailability(model)` | Attempts to create a conversation with the supplied model, returning `true` on success and `false` when creation fails. |
+| `registerPlugin(plugin)` | Adds a plugin at runtime. If the client is already initialised the plugin’s `initialize` hook is invoked immediately with automatic error logging. |
+
 ## Environment Setup
 
 This SDK requires two components:
@@ -236,7 +255,7 @@ runtime.
 ## Testing
 
 - `npm run test` executes the Vitest suite, including the mocked native integration harness.
-- `npm run coverage` enforces the 80%+ global coverage thresholds configured in `vitest.config.ts`.
+- `npm run coverage` enforces the 100% global coverage thresholds configured in `vitest.config.ts`.
 
 ## Scripts
 
@@ -292,20 +311,20 @@ Set the `CODEX_HOME` environment variable (or pass `codexHome`) to the directory
 
 | Rust export | TypeScript usage | Tests hitting it | Notes |
 | --- | --- | --- | --- |
-| `NativeCodex::new` | `CodexClient.connect()` creates the binding (`src/client/CodexClient.ts:73`) | `tests/CodexClient.test.ts:77` | Fully wrapped; handles `~` expansion for `codexHome`. |
-| `NativeCodex::create_conversation` | `CodexClient.createConversation()` (`src/client/CodexClient.ts:112`) | `tests/CodexClient.test.ts:77`, `tests/integration/CodexClient.integration.test.ts:28` | Streams the initial `session_configured` event emitted by Rust. |
-| `CodexSession::next_event / submit / close` | Event loop + submission helpers in `CodexClient` (`src/client/CodexClient.ts:133-200`) | `tests/CodexClient.test.ts:90`, `tests/integration/CodexClient.integration.test.ts:28`, `tests/examples/examples.test.ts:284` | Core flow covered; `interruptConversation()` and patch approvals exist but lack assertions. |
+| `NativeCodex::new` | `CodexClient.connect()` creates the binding (`src/client/CodexClient.ts:83`) | `tests/CodexClient.behavior.test.ts`, `tests/integration/CodexClient.integration.test.ts` | Fully wrapped; handles `~` expansion for `codexHome`. |
+| `NativeCodex::create_conversation` | `CodexClient.createConversation()` (`src/client/CodexClient.ts:117`) | `tests/CodexClient.behavior.test.ts`, `tests/integration/CodexClient.integration.test.ts`, `tests/examples/examples.test.ts` | Streams the initial `session_configured` event emitted by Rust. |
+| `CodexSession::next_event / submit / close` | Event loop + submission helpers in `CodexClient` (`src/client/CodexClient.ts:146-213`) | `tests/CodexClient.behavior.test.ts`, `tests/integration/CodexClient.integration.test.ts`, `tests/examples/examples.test.ts` | Core flow covered, including interrupts, approvals, and iterator cleanup behaviours. |
 | `version()` | Not exposed in the SDK | — | Available in the binding; surface later if we need runtime version info. |
 
 ### Protocol Operations
 
 | Rust `Op` variant (`codex-rs/protocol/src/protocol.rs:53-175`) | Client support | Tests | Status |
 | --- | --- | --- | --- |
-| `Interrupt` | `CodexClient.interruptConversation()` → `createInterruptSubmission()` (`src/client/CodexClient.ts:178`) | — | Implemented, currently untested. |
-| `UserInput` | `CodexClient.sendMessage()` → `createUserInputSubmission()` (`src/client/CodexClient.ts:133`) | `tests/CodexClient.test.ts:90` | Covered. |
-| `UserTurn` | `CodexClient.sendUserTurn()` → `createUserTurnSubmission()` (`src/client/CodexClient.ts:150`) | `tests/CodexClient.test.ts:108`, `tests/integration/CodexClient.integration.test.ts:28`, `tests/examples/examples.test.ts:284` | Covered. |
-| `ExecApproval` | `CodexClient.respondToExecApproval()` (`src/client/CodexClient.ts:184`) | `tests/integration/CodexClient.integration.test.ts:67`, `tests/examples/examples.test.ts:308` | Covered. |
-| `PatchApproval` | `CodexClient.respondToPatchApproval()` (`src/client/CodexClient.ts:194`) | — | Implemented, awaiting targeted test. |
+| `Interrupt` | `CodexClient.interruptConversation()` → `createInterruptSubmission()` (`src/client/CodexClient.ts:187`) | `tests/CodexClient.behavior.test.ts` | Covered. |
+| `UserInput` | `CodexClient.sendMessage()` → `createUserInputSubmission()` (`src/client/CodexClient.ts:142`) | `tests/CodexClient.behavior.test.ts`, `tests/examples/examples.test.ts` | Covered. |
+| `UserTurn` | `CodexClient.sendUserTurn()` → `createUserTurnSubmission()` (`src/client/CodexClient.ts:160`) | `tests/CodexClient.behavior.test.ts`, `tests/integration/CodexClient.integration.test.ts`, `tests/examples/examples.test.ts` | Covered. |
+| `ExecApproval` | `CodexClient.respondToExecApproval()` (`src/client/CodexClient.ts:194`) | `tests/CodexClient.behavior.test.ts`, `tests/integration/CodexClient.integration.test.ts`, `tests/examples/examples.test.ts` | Covered. |
+| `PatchApproval` | `CodexClient.respondToPatchApproval()` (`src/client/CodexClient.ts:205`) | `tests/CodexClient.behavior.test.ts`, `tests/integration/CodexClient.integration.test.ts`, `tests/examples/examples.test.ts` | Covered. |
 | `OverrideTurnContext` | — | — | Currently not exposed via the SDK. |
 | `AddToHistory` | — | — | Currently not exposed via the SDK. |
 | `GetHistoryEntryRequest` | — | — | Currently not exposed via the SDK. |
