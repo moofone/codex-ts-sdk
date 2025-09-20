@@ -5,7 +5,11 @@ export { CodexClientPool } from './client/CodexClientPool';
 export type {
   CodexClientConfig,
   CreateConversationOptions,
+  GetHistoryEntryRequestOptions,
   OverrideTurnContextOptions,
+  ReviewRequestCamelCaseInput,
+  ReviewRequestInput,
+  ReviewRequestSnakeCaseInput,
   SendUserTurnOptions,
   SendMessageOptions,
 } from './types/options';
@@ -13,8 +17,20 @@ export type {
 export type { CodexEvent } from './types/events';
 export type {
   ConversationPathEventMessage,
+  CustomPromptDefinition,
+  EnteredReviewModeEventMessage,
+  ExitedReviewModeEventMessage,
+  GetHistoryEntryResponseEventMessage,
+  HistoryEntryEvent,
   ShutdownCompleteEventMessage,
   TurnContextEventMessage,
+  ListCustomPromptsResponseEventMessage,
+  McpListToolsResponseEventMessage,
+  McpToolDefinition,
+  ReviewCodeLocation,
+  ReviewFinding,
+  ReviewLineRange,
+  ReviewOutputEventMessage,
 } from './client/CodexClient';
 export type { SubmissionEnvelope, SubmissionOp, ReviewRequest } from './internal/submissions';
 export type {

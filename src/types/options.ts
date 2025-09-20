@@ -47,3 +47,20 @@ export interface SendUserTurnOptions {
 export interface SendMessageOptions {
   images?: string[];
 }
+
+export interface GetHistoryEntryRequestOptions {
+  offset: number;
+  logId: number;
+}
+
+export interface ReviewRequestSnakeCaseInput {
+  prompt: string;
+  user_facing_hint: string;
+}
+
+export interface ReviewRequestCamelCaseInput {
+  prompt: string;
+  userFacingHint: string;
+}
+
+export type ReviewRequestInput = ReviewRequestSnakeCaseInput | ReviewRequestCamelCaseInput;

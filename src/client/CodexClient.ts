@@ -10,18 +10,25 @@ import type { CodexEvent } from '../types/events';
 import type {
   CodexClientConfig,
   CreateConversationOptions,
+  GetHistoryEntryRequestOptions,
   OverrideTurnContextOptions,
+  ReviewRequestInput,
   SendMessageOptions,
   SendUserTurnOptions,
 } from '../types/options';
-import type { SubmissionEnvelope } from '../internal/submissions';
+import type { ReviewRequest, SubmissionEnvelope } from '../internal/submissions';
 import {
   createAddToHistorySubmission,
+  createCompactSubmission,
+  createExecApprovalSubmission,
+  createGetHistoryEntryRequestSubmission,
   createGetPathSubmission,
   createInterruptSubmission,
-  createExecApprovalSubmission,
+  createListCustomPromptsSubmission,
+  createListMcpToolsSubmission,
   createOverrideTurnContextSubmission,
   createPatchApprovalSubmission,
+  createReviewSubmission,
   createShutdownSubmission,
   createUserInputSubmission,
   createUserTurnSubmission,
@@ -303,6 +310,38 @@ export class CodexClient extends EventEmitter {
     await this.submit(session, submission);
   }
 
+  async getHistoryEntry(options: GetHistoryEntryRequestOptions): Promise<void> {
+    const normalized = this.normalizeGetHistoryEntryOptions(options);
+    const session = this.requireSession();
+    const submission = createGetHistoryEntryRequestSubmission(this.generateRequestId(), normalized);
+    await this.submit(session, submission);
+  }
+
+  async listMcpTools(): Promise<void> {
+    const session = this.requireSession();
+    const submission = createListMcpToolsSubmission(this.generateRequestId());
+    await this.submit(session, submission);
+  }
+
+  async listCustomPrompts(): Promise<void> {
+    const session = this.requireSession();
+    const submission = createListCustomPromptsSubmission(this.generateRequestId());
+    await this.submit(session, submission);
+  }
+
+  async compact(): Promise<void> {
+    const session = this.requireSession();
+    const submission = createCompactSubmission(this.generateRequestId());
+    await this.submit(session, submission);
+  }
+
+  async review(request: ReviewRequestInput): Promise<void> {
+    const reviewRequest = this.normalizeReviewRequest(request);
+    const session = this.requireSession();
+    const submission = createReviewSubmission(this.generateRequestId(), { reviewRequest });
+    await this.submit(session, submission);
+  }
+
   async getPath(): Promise<void> {
     const session = this.requireSession();
     const submission = createGetPathSubmission(this.generateRequestId());
@@ -391,6 +430,48 @@ export class CodexClient extends EventEmitter {
     } catch {
       return false;
     }
+  }
+
+  private normalizeGetHistoryEntryOptions(
+    options: GetHistoryEntryRequestOptions,
+  ): GetHistoryEntryRequestOptions {
+    if (!options || typeof options !== 'object') {
+      throw new TypeError('getHistoryEntry options must be an object');
+    }
+
+    const { offset, logId } = options;
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+      throw new TypeError('getHistoryEntry offset must be a non-negative integer');
+    }
+    if (!Number.isSafeInteger(logId) || logId < 0) {
+      throw new TypeError('getHistoryEntry logId must be a non-negative integer');
+    }
+
+    return { offset, logId };
+  }
+
+  private normalizeReviewRequest(request: ReviewRequestInput): ReviewRequest {
+    if (!request || typeof request !== 'object') {
+      throw new TypeError('review request must be an object');
+    }
+
+    const candidate = request as Record<string, unknown>;
+    const prompt = candidate.prompt;
+    if (typeof prompt !== 'string' || !prompt.trim()) {
+      throw new TypeError('review prompt must be a non-empty string');
+    }
+
+    const snakeCase = candidate.user_facing_hint;
+    const camelCase = candidate.userFacingHint;
+    const hintSource = snakeCase ?? camelCase;
+    if (typeof hintSource !== 'string' || !hintSource.trim()) {
+      throw new TypeError('review userFacingHint must be a non-empty string');
+    }
+
+    return {
+      prompt: prompt.trim(),
+      user_facing_hint: hintSource.trim(),
+    };
   }
 
   private async submit(session: CodexSessionHandle, submission: SubmissionEnvelope): Promise<void> {
@@ -523,6 +604,21 @@ export class CodexClient extends EventEmitter {
         break;
       case 'turn_context':
         this.emit('turnContext', event.msg);
+        break;
+      case 'get_history_entry_response':
+        this.emit('historyEntry', event.msg as GetHistoryEntryResponseEventMessage);
+        break;
+      case 'mcp_list_tools_response':
+        this.emit('mcpTools', event.msg as McpListToolsResponseEventMessage);
+        break;
+      case 'list_custom_prompts_response':
+        this.emit('customPrompts', event.msg as ListCustomPromptsResponseEventMessage);
+        break;
+      case 'entered_review_mode':
+        this.emit('enteredReviewMode', event.msg as EnteredReviewModeEventMessage);
+        break;
+      case 'exited_review_mode':
+        this.emit('exitedReviewMode', event.msg as ExitedReviewModeEventMessage);
         break;
       default:
         break;
@@ -679,10 +775,80 @@ export interface TurnContextEventMessage {
   summary: ReasoningSummary;
 }
 
+export interface HistoryEntryEvent {
+  conversation_id: string;
+  ts: number;
+  text: string;
+}
+
+export interface GetHistoryEntryResponseEventMessage {
+  type: 'get_history_entry_response';
+  offset: number;
+  log_id: number;
+  entry?: HistoryEntryEvent;
+}
+
+export type McpToolDefinition = Record<string, unknown>;
+
+export interface McpListToolsResponseEventMessage {
+  type: 'mcp_list_tools_response';
+  tools: Record<string, McpToolDefinition>;
+}
+
+export interface CustomPromptDefinition {
+  name: string;
+  path: string;
+  content: string;
+}
+
+export interface ListCustomPromptsResponseEventMessage {
+  type: 'list_custom_prompts_response';
+  custom_prompts: CustomPromptDefinition[];
+}
+
+export interface ReviewLineRange {
+  start: number;
+  end: number;
+}
+
+export interface ReviewCodeLocation {
+  absolute_file_path: string;
+  line_range: ReviewLineRange;
+}
+
+export interface ReviewFinding {
+  title: string;
+  body: string;
+  confidence_score: number;
+  priority: number;
+  code_location: ReviewCodeLocation;
+}
+
+export interface ReviewOutputEventMessage {
+  findings: ReviewFinding[];
+  overall_correctness: string;
+  overall_explanation: string;
+  overall_confidence_score: number;
+}
+
+export interface EnteredReviewModeEventMessage extends ReviewRequest {
+  type: 'entered_review_mode';
+}
+
+export interface ExitedReviewModeEventMessage {
+  type: 'exited_review_mode';
+  review_output?: ReviewOutputEventMessage;
+}
+
 export interface CodexClient {
   on(event: 'conversationPath', listener: CodexClientEventListener<ConversationPathEventMessage>): this;
   on(event: 'shutdownComplete', listener: CodexClientEventListener<ShutdownCompleteEventMessage>): this;
   on(event: 'turnContext', listener: CodexClientEventListener<TurnContextEventMessage>): this;
+  on(event: 'historyEntry', listener: CodexClientEventListener<GetHistoryEntryResponseEventMessage>): this;
+  on(event: 'mcpTools', listener: CodexClientEventListener<McpListToolsResponseEventMessage>): this;
+  on(event: 'customPrompts', listener: CodexClientEventListener<ListCustomPromptsResponseEventMessage>): this;
+  on(event: 'enteredReviewMode', listener: CodexClientEventListener<EnteredReviewModeEventMessage>): this;
+  on(event: 'exitedReviewMode', listener: CodexClientEventListener<ExitedReviewModeEventMessage>): this;
   on(event: 'event', listener: CodexClientEventListener<CodexEvent>): this;
   on(event: 'error', listener: (error: unknown) => void): this;
   on(event: typeof EVENT_STREAM_CLOSED, listener: () => void): this;
@@ -690,6 +856,11 @@ export interface CodexClient {
   once(event: 'conversationPath', listener: CodexClientEventListener<ConversationPathEventMessage>): this;
   once(event: 'shutdownComplete', listener: CodexClientEventListener<ShutdownCompleteEventMessage>): this;
   once(event: 'turnContext', listener: CodexClientEventListener<TurnContextEventMessage>): this;
+  once(event: 'historyEntry', listener: CodexClientEventListener<GetHistoryEntryResponseEventMessage>): this;
+  once(event: 'mcpTools', listener: CodexClientEventListener<McpListToolsResponseEventMessage>): this;
+  once(event: 'customPrompts', listener: CodexClientEventListener<ListCustomPromptsResponseEventMessage>): this;
+  once(event: 'enteredReviewMode', listener: CodexClientEventListener<EnteredReviewModeEventMessage>): this;
+  once(event: 'exitedReviewMode', listener: CodexClientEventListener<ExitedReviewModeEventMessage>): this;
   once(event: 'event', listener: CodexClientEventListener<CodexEvent>): this;
   once(event: 'error', listener: (error: unknown) => void): this;
   once(event: typeof EVENT_STREAM_CLOSED, listener: () => void): this;
@@ -697,6 +868,11 @@ export interface CodexClient {
   off(event: 'conversationPath', listener: CodexClientEventListener<ConversationPathEventMessage>): this;
   off(event: 'shutdownComplete', listener: CodexClientEventListener<ShutdownCompleteEventMessage>): this;
   off(event: 'turnContext', listener: CodexClientEventListener<TurnContextEventMessage>): this;
+  off(event: 'historyEntry', listener: CodexClientEventListener<GetHistoryEntryResponseEventMessage>): this;
+  off(event: 'mcpTools', listener: CodexClientEventListener<McpListToolsResponseEventMessage>): this;
+  off(event: 'customPrompts', listener: CodexClientEventListener<ListCustomPromptsResponseEventMessage>): this;
+  off(event: 'enteredReviewMode', listener: CodexClientEventListener<EnteredReviewModeEventMessage>): this;
+  off(event: 'exitedReviewMode', listener: CodexClientEventListener<ExitedReviewModeEventMessage>): this;
   off(event: 'event', listener: CodexClientEventListener<CodexEvent>): this;
   off(event: 'error', listener: (error: unknown) => void): this;
   off(event: typeof EVENT_STREAM_CLOSED, listener: () => void): this;
