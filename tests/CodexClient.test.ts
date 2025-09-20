@@ -202,6 +202,116 @@ describe('CodexClient', () => {
     await client.close().catch(() => undefined);
   });
 
+  it('overrides turn context through submissions', async () => {
+    const client = createClient();
+    await client.createConversation();
+    nextEventMock.mockResolvedValueOnce(null);
+
+    await client.overrideTurnContext({
+      cwd: '/tmp/workspace',
+      approvalPolicy: 'never',
+      sandboxPolicy: { mode: 'read-only' },
+      model: 'codex',
+      effort: 'high',
+      summary: 'concise',
+    });
+
+    const payload = JSON.parse(submitMock.mock.calls[0][0]);
+    expect(payload.op).toMatchObject({
+      type: 'override_turn_context',
+      cwd: '/tmp/workspace',
+      approval_policy: 'never',
+      sandbox_policy: { mode: 'read-only' },
+      model: 'gpt-5-codex',
+      effort: 'high',
+      summary: 'concise',
+    });
+  });
+
+  it('validates override turn context input', async () => {
+    const client = createClient();
+    await client.createConversation();
+
+    await expect(client.overrideTurnContext({})).rejects.toThrow(/at least one override property/);
+    await expect(
+      client.overrideTurnContext({ effort: 'invalid' as unknown as 'minimal' }),
+    ).rejects.toThrow(/effort must be minimal/);
+  });
+
+  it('adds entries to history via submissions', async () => {
+    const client = createClient();
+    await client.createConversation();
+    nextEventMock.mockResolvedValueOnce(null);
+
+    await client.addToHistory('Remember this');
+
+    const payload = JSON.parse(submitMock.mock.calls[0][0]);
+    expect(payload.op).toEqual({ type: 'add_to_history', text: 'Remember this' });
+  });
+
+  it('rejects blank history entries', async () => {
+    const client = createClient();
+    await client.createConversation();
+
+    await expect(client.addToHistory('   ')).rejects.toThrow(/cannot be empty/);
+  });
+
+  it('requests conversation path and shutdown submissions', async () => {
+    const client = createClient();
+    await client.createConversation();
+    nextEventMock.mockResolvedValueOnce(null);
+
+    await client.getPath();
+    await client.shutdown();
+
+    expect(submitMock.mock.calls).toHaveLength(2);
+    const firstPayload = JSON.parse(submitMock.mock.calls[0][0]);
+    const secondPayload = JSON.parse(submitMock.mock.calls[1][0]);
+    expect(firstPayload.op).toEqual({ type: 'get_path' });
+    expect(secondPayload.op).toEqual({ type: 'shutdown' });
+  });
+
+  it('routes new event types through routeEvent', async () => {
+    const client = createClient();
+    const conversationPathListener = vi.fn();
+    const shutdownListener = vi.fn();
+    const turnContextListener = vi.fn();
+
+    client.on('conversationPath', conversationPathListener);
+    client.on('shutdownComplete', shutdownListener);
+    client.on('turnContext', turnContextListener);
+
+    const clientWithRoute = client as unknown as { routeEvent: (event: ReturnType<typeof makeEvent>) => void };
+
+    clientWithRoute.routeEvent(
+      makeEvent('conversation_path', { conversation_id: 'conv-123', path: '/tmp/history' }),
+    );
+    clientWithRoute.routeEvent(makeEvent('shutdown_complete'));
+    clientWithRoute.routeEvent(
+      makeEvent('turn_context', {
+        cwd: '/tmp',
+        approval_policy: 'on-request',
+        sandbox_policy: {
+          mode: 'workspace-write',
+          network_access: false,
+          exclude_tmpdir_env_var: false,
+          exclude_slash_tmp: false,
+        },
+        model: 'gpt-5-codex',
+        effort: 'medium',
+        summary: 'auto',
+      }),
+    );
+
+    expect(conversationPathListener).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/tmp/history' }),
+    );
+    expect(shutdownListener).toHaveBeenCalledWith(expect.objectContaining({ type: 'shutdown_complete' }));
+    expect(turnContextListener).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: '/tmp', model: 'gpt-5-codex' }),
+    );
+  });
+
   it('closes sessions gracefully', async () => {
     const client = createClient();
     let resolveNext: ((value: string | null) => void) | undefined;
