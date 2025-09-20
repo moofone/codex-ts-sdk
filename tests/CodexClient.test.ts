@@ -356,6 +356,10 @@ describe('CodexClient', () => {
 
   it('routes new event types through routeEvent', async () => {
     const client = createClient();
+    const sessionConfiguredListener = vi.fn();
+    const execApprovalListener = vi.fn();
+    const patchApprovalListener = vi.fn();
+    const notificationListener = vi.fn();
     const conversationPathListener = vi.fn();
     const shutdownListener = vi.fn();
     const turnContextListener = vi.fn();
@@ -365,6 +369,10 @@ describe('CodexClient', () => {
     const enteredReviewListener = vi.fn();
     const exitedReviewListener = vi.fn();
 
+    client.on('sessionConfigured', sessionConfiguredListener);
+    client.on('execCommandApproval', execApprovalListener);
+    client.on('applyPatchApproval', patchApprovalListener);
+    client.on('notification', notificationListener);
     client.on('conversationPath', conversationPathListener);
     client.on('shutdownComplete', shutdownListener);
     client.on('turnContext', turnContextListener);
@@ -377,9 +385,44 @@ describe('CodexClient', () => {
     const clientWithRoute = client as unknown as { routeEvent: (event: ReturnType<typeof makeEvent>) => void };
 
     clientWithRoute.routeEvent(
+      makeEvent('session_configured', {
+        session_id: 'conv-123',
+        model: 'gpt-5-codex',
+        history_log_id: 12,
+        history_entry_count: 3,
+        rollout_path: '/tmp/rollout.log',
+      }),
+    );
+    clientWithRoute.routeEvent(
       makeEvent('conversation_path', { conversation_id: 'conv-123', path: '/tmp/history' }),
     );
     clientWithRoute.routeEvent(makeEvent('shutdown_complete'));
+    clientWithRoute.routeEvent(
+      makeEvent('exec_approval_request', {
+        call_id: 'exec-1',
+        command: ['ls', '-la'],
+        cwd: '/tmp',
+        reason: 'list directory',
+        id: 'approval-1',
+      }),
+    );
+    clientWithRoute.routeEvent(
+      makeEvent('apply_patch_approval_request', {
+        call_id: 'patch-1',
+        changes: {
+          '/tmp/file.txt': {
+            update: {
+              unified_diff: '---',
+              move_path: null,
+            },
+          },
+        },
+        reason: 'update file',
+        grant_root: '/tmp',
+        id: 'patch-1',
+      }),
+    );
+    clientWithRoute.routeEvent(makeEvent('notification', { content: 'background work done' }));
     clientWithRoute.routeEvent(
       makeEvent('turn_context', {
         cwd: '/tmp',
@@ -433,8 +476,31 @@ describe('CodexClient', () => {
       }),
     );
 
+    expect(sessionConfiguredListener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'session_configured',
+        session_id: 'conv-123',
+        model: 'gpt-5-codex',
+      }),
+    );
     expect(conversationPathListener).toHaveBeenCalledWith(expect.objectContaining({ path: '/tmp/history' }));
     expect(shutdownListener).toHaveBeenCalledWith(expect.objectContaining({ type: 'shutdown_complete' }));
+    expect(execApprovalListener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'exec_approval_request',
+        command: ['ls', '-la'],
+        cwd: '/tmp',
+      }),
+    );
+    expect(patchApprovalListener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'apply_patch_approval_request',
+        changes: expect.objectContaining({ '/tmp/file.txt': expect.any(Object) }),
+      }),
+    );
+    expect(notificationListener).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'notification', content: 'background work done' }),
+    );
     expect(turnContextListener).toHaveBeenCalledWith(
       expect.objectContaining({ cwd: '/tmp', model: 'gpt-5-codex' }),
     );

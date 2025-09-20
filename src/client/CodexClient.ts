@@ -6,7 +6,8 @@ import type { AskForApproval } from '../bindings/AskForApproval';
 import type { SandboxPolicy } from '../bindings/SandboxPolicy';
 import type { ReasoningEffort } from '../bindings/ReasoningEffort';
 import type { ReasoningSummary } from '../bindings/ReasoningSummary';
-import type { CodexEvent } from '../types/events';
+import type { FileChange } from '../bindings/FileChange';
+import type { CodexEvent, CodexEventMessage } from '../types/events';
 import type {
   CodexClientConfig,
   CreateConversationOptions,
@@ -585,16 +586,16 @@ export class CodexClient extends EventEmitter {
   private routeEvent(event: CodexEvent): void {
     switch (event.msg.type) {
       case 'session_configured':
-        this.emit('sessionConfigured', event.msg);
+        this.emit('sessionConfigured', event.msg as SessionConfiguredEventMessage);
         break;
       case 'exec_approval_request':
-        this.emit('execCommandApproval', event.msg);
+        this.emit('execCommandApproval', event.msg as ExecApprovalRequestEventMessage);
         break;
       case 'apply_patch_approval_request':
-        this.emit('applyPatchApproval', event.msg);
+        this.emit('applyPatchApproval', event.msg as ApplyPatchApprovalRequestEventMessage);
         break;
       case 'notification':
-        this.emit('notification', event.msg);
+        this.emit('notification', event.msg as NotificationEventMessage);
         break;
       case 'conversation_path':
         this.emit('conversationPath', event.msg);
@@ -755,6 +756,40 @@ function isSandboxPolicyValue(value: unknown): value is SandboxPolicy {
 
 type CodexClientEventListener<T> = (event: T) => void;
 
+export interface SessionConfiguredEventMessage extends CodexEventMessage {
+  type: 'session_configured';
+  session_id: string;
+  model: string;
+  reasoning_effort?: ReasoningEffort;
+  history_log_id: number;
+  history_entry_count: number;
+  initial_messages?: CodexEventMessage[];
+  rollout_path: string;
+}
+
+export interface ExecApprovalRequestEventMessage extends CodexEventMessage {
+  type: 'exec_approval_request';
+  call_id: string;
+  command: string[];
+  cwd: string;
+  reason?: string;
+  id?: string;
+}
+
+export interface ApplyPatchApprovalRequestEventMessage extends CodexEventMessage {
+  type: 'apply_patch_approval_request';
+  call_id: string;
+  changes: Record<string, FileChange>;
+  reason?: string;
+  grant_root?: string;
+  id?: string;
+}
+
+export interface NotificationEventMessage extends CodexEventMessage {
+  type: 'notification';
+  content?: string;
+}
+
 export interface ConversationPathEventMessage {
   type: 'conversation_path';
   conversation_id: string;
@@ -841,6 +876,13 @@ export interface ExitedReviewModeEventMessage {
 }
 
 export interface CodexClient {
+  on(event: 'sessionConfigured', listener: CodexClientEventListener<SessionConfiguredEventMessage>): this;
+  on(event: 'execCommandApproval', listener: CodexClientEventListener<ExecApprovalRequestEventMessage>): this;
+  on(
+    event: 'applyPatchApproval',
+    listener: CodexClientEventListener<ApplyPatchApprovalRequestEventMessage>,
+  ): this;
+  on(event: 'notification', listener: CodexClientEventListener<NotificationEventMessage>): this;
   on(event: 'conversationPath', listener: CodexClientEventListener<ConversationPathEventMessage>): this;
   on(event: 'shutdownComplete', listener: CodexClientEventListener<ShutdownCompleteEventMessage>): this;
   on(event: 'turnContext', listener: CodexClientEventListener<TurnContextEventMessage>): this;
@@ -853,6 +895,13 @@ export interface CodexClient {
   on(event: 'error', listener: (error: unknown) => void): this;
   on(event: typeof EVENT_STREAM_CLOSED, listener: () => void): this;
 
+  once(event: 'sessionConfigured', listener: CodexClientEventListener<SessionConfiguredEventMessage>): this;
+  once(event: 'execCommandApproval', listener: CodexClientEventListener<ExecApprovalRequestEventMessage>): this;
+  once(
+    event: 'applyPatchApproval',
+    listener: CodexClientEventListener<ApplyPatchApprovalRequestEventMessage>,
+  ): this;
+  once(event: 'notification', listener: CodexClientEventListener<NotificationEventMessage>): this;
   once(event: 'conversationPath', listener: CodexClientEventListener<ConversationPathEventMessage>): this;
   once(event: 'shutdownComplete', listener: CodexClientEventListener<ShutdownCompleteEventMessage>): this;
   once(event: 'turnContext', listener: CodexClientEventListener<TurnContextEventMessage>): this;
@@ -865,6 +914,13 @@ export interface CodexClient {
   once(event: 'error', listener: (error: unknown) => void): this;
   once(event: typeof EVENT_STREAM_CLOSED, listener: () => void): this;
 
+  off(event: 'sessionConfigured', listener: CodexClientEventListener<SessionConfiguredEventMessage>): this;
+  off(event: 'execCommandApproval', listener: CodexClientEventListener<ExecApprovalRequestEventMessage>): this;
+  off(
+    event: 'applyPatchApproval',
+    listener: CodexClientEventListener<ApplyPatchApprovalRequestEventMessage>,
+  ): this;
+  off(event: 'notification', listener: CodexClientEventListener<NotificationEventMessage>): this;
   off(event: 'conversationPath', listener: CodexClientEventListener<ConversationPathEventMessage>): this;
   off(event: 'shutdownComplete', listener: CodexClientEventListener<ShutdownCompleteEventMessage>): this;
   off(event: 'turnContext', listener: CodexClientEventListener<TurnContextEventMessage>): this;

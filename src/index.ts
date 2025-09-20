@@ -16,12 +16,16 @@ export type {
 
 export type { CodexEvent } from './types/events';
 export type {
+  ApplyPatchApprovalRequestEventMessage,
   ConversationPathEventMessage,
   CustomPromptDefinition,
   EnteredReviewModeEventMessage,
   ExitedReviewModeEventMessage,
   GetHistoryEntryResponseEventMessage,
   HistoryEntryEvent,
+  ExecApprovalRequestEventMessage,
+  NotificationEventMessage,
+  SessionConfiguredEventMessage,
   ShutdownCompleteEventMessage,
   TurnContextEventMessage,
   ListCustomPromptsResponseEventMessage,
