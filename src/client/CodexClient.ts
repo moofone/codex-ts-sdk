@@ -705,7 +705,6 @@ export interface CodexClient {
   once(event: string, listener: (...args: unknown[]) => void): this;
   off(event: string, listener: (...args: unknown[]) => void): this;
 }
-
 function expandHomePath(input: string): string {
   const trimmed = input.trim();
   if (!trimmed) {
