@@ -4,19 +4,25 @@ import * as path from 'path';
 import type { InputItem } from '../bindings/InputItem';
 import type { AskForApproval } from '../bindings/AskForApproval';
 import type { SandboxPolicy } from '../bindings/SandboxPolicy';
+import type { ReasoningEffort } from '../bindings/ReasoningEffort';
 import type { ReasoningSummary } from '../bindings/ReasoningSummary';
 import type { CodexEvent } from '../types/events';
 import type {
   CodexClientConfig,
   CreateConversationOptions,
+  OverrideTurnContextOptions,
   SendMessageOptions,
   SendUserTurnOptions,
 } from '../types/options';
 import type { SubmissionEnvelope } from '../internal/submissions';
 import {
+  createAddToHistorySubmission,
+  createGetPathSubmission,
   createInterruptSubmission,
   createExecApprovalSubmission,
+  createOverrideTurnContextSubmission,
   createPatchApprovalSubmission,
+  createShutdownSubmission,
   createUserInputSubmission,
   createUserTurnSubmission,
 } from '../internal/submissions';
@@ -44,6 +50,10 @@ const DEFAULT_SANDBOX_POLICY: SandboxPolicy = {
   exclude_tmpdir_env_var: false,
   exclude_slash_tmp: false,
 };
+
+const APPROVAL_POLICY_VALUES: readonly AskForApproval[] = ['untrusted', 'on-failure', 'on-request', 'never'];
+const REASONING_EFFORT_VALUES: readonly ReasoningEffort[] = ['minimal', 'low', 'medium', 'high'];
+const REASONING_SUMMARY_VALUES: readonly ReasoningSummary[] = ['auto', 'concise', 'detailed', 'none'];
 
 export class CodexClient extends EventEmitter {
   private native?: NativeCodexInstance;
@@ -202,6 +212,106 @@ export class CodexClient extends EventEmitter {
       id: requestId,
       decision,
     });
+    await this.submit(session, submission);
+  }
+
+  async overrideTurnContext(options: OverrideTurnContextOptions): Promise<void> {
+    if (!options || typeof options !== 'object') {
+      throw new TypeError('overrideTurnContext requires an options object');
+    }
+
+    const hasOverride =
+      options.cwd !== undefined ||
+      options.approvalPolicy !== undefined ||
+      options.sandboxPolicy !== undefined ||
+      options.model !== undefined ||
+      options.effort !== undefined ||
+      options.summary !== undefined;
+
+    if (!hasOverride) {
+      throw new TypeError('overrideTurnContext requires at least one override property');
+    }
+
+    const normalized: OverrideTurnContextOptions = {};
+
+    if (options.cwd !== undefined) {
+      if (typeof options.cwd !== 'string' || !options.cwd.trim()) {
+        throw new TypeError('overrideTurnContext cwd must be a non-empty string when provided');
+      }
+      normalized.cwd = options.cwd.trim();
+    }
+
+    if (options.approvalPolicy !== undefined) {
+      if (!isAskForApprovalValue(options.approvalPolicy)) {
+        throw new TypeError('overrideTurnContext approvalPolicy must be a valid AskForApproval value');
+      }
+      normalized.approvalPolicy = options.approvalPolicy;
+    }
+
+    if (options.sandboxPolicy !== undefined) {
+      if (!isSandboxPolicyValue(options.sandboxPolicy)) {
+        throw new TypeError('overrideTurnContext sandboxPolicy must be a valid SandboxPolicy value');
+      }
+      normalized.sandboxPolicy = options.sandboxPolicy;
+    }
+
+    let normalizedEffort: ReasoningEffort | null | undefined = options.effort;
+    if (normalizedEffort !== undefined && normalizedEffort !== null && !isReasoningEffortValue(normalizedEffort)) {
+      throw new TypeError('overrideTurnContext effort must be minimal, low, medium, high or null');
+    }
+
+    if (options.model !== undefined) {
+      if (typeof options.model !== 'string' || !options.model.trim()) {
+        throw new TypeError('overrideTurnContext model must be a non-empty string when provided');
+      }
+      const trimmedModel = options.model.trim();
+      const effortForResolution =
+        normalizedEffort !== undefined && normalizedEffort !== null ? normalizedEffort : undefined;
+      const resolved = resolveModelVariant(trimmedModel, effortForResolution);
+      normalized.model = resolved.model;
+      if (normalizedEffort !== undefined && normalizedEffort !== null) {
+        normalizedEffort = resolved.effort;
+      }
+    }
+
+    if (normalizedEffort !== undefined) {
+      normalized.effort = normalizedEffort;
+    }
+
+    if (options.summary !== undefined) {
+      if (!isReasoningSummaryValue(options.summary)) {
+        throw new TypeError('overrideTurnContext summary must be auto, concise, detailed or none');
+      }
+      normalized.summary = options.summary;
+    }
+
+    const session = this.requireSession();
+    const submission = createOverrideTurnContextSubmission(this.generateRequestId(), normalized);
+    await this.submit(session, submission);
+  }
+
+  async addToHistory(text: string): Promise<void> {
+    if (typeof text !== 'string') {
+      throw new TypeError('addToHistory text must be a string');
+    }
+    if (!text.trim()) {
+      throw new TypeError('addToHistory text cannot be empty');
+    }
+
+    const session = this.requireSession();
+    const submission = createAddToHistorySubmission(this.generateRequestId(), { text });
+    await this.submit(session, submission);
+  }
+
+  async getPath(): Promise<void> {
+    const session = this.requireSession();
+    const submission = createGetPathSubmission(this.generateRequestId());
+    await this.submit(session, submission);
+  }
+
+  async shutdown(): Promise<void> {
+    const session = this.requireSession();
+    const submission = createShutdownSubmission(this.generateRequestId());
     await this.submit(session, submission);
   }
 
@@ -405,6 +515,15 @@ export class CodexClient extends EventEmitter {
       case 'notification':
         this.emit('notification', event.msg);
         break;
+      case 'conversation_path':
+        this.emit('conversationPath', event.msg);
+        break;
+      case 'shutdown_complete':
+        this.emit('shutdownComplete', event.msg);
+        break;
+      case 'turn_context':
+        this.emit('turnContext', event.msg);
+        break;
       default:
         break;
     }
@@ -488,6 +607,94 @@ export class CodexClient extends EventEmitter {
       details,
     });
   }
+}
+
+type WorkspaceWriteSandboxPolicy = Extract<SandboxPolicy, { mode: 'workspace-write' }>;
+
+function isAskForApprovalValue(value: unknown): value is AskForApproval {
+  return typeof value === 'string' && (APPROVAL_POLICY_VALUES as readonly string[]).includes(value);
+}
+
+function isReasoningEffortValue(value: unknown): value is ReasoningEffort {
+  return typeof value === 'string' && (REASONING_EFFORT_VALUES as readonly string[]).includes(value);
+}
+
+function isReasoningSummaryValue(value: unknown): value is ReasoningSummary {
+  return typeof value === 'string' && (REASONING_SUMMARY_VALUES as readonly string[]).includes(value);
+}
+
+function isSandboxPolicyValue(value: unknown): value is SandboxPolicy {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as { mode?: unknown };
+  if (candidate.mode === 'danger-full-access' || candidate.mode === 'read-only') {
+    return true;
+  }
+
+  if (candidate.mode === 'workspace-write') {
+    const workspacePolicy = value as WorkspaceWriteSandboxPolicy;
+    if (
+      typeof workspacePolicy.network_access !== 'boolean' ||
+      typeof workspacePolicy.exclude_tmpdir_env_var !== 'boolean' ||
+      typeof workspacePolicy.exclude_slash_tmp !== 'boolean'
+    ) {
+      return false;
+    }
+
+    if (
+      workspacePolicy.writable_roots !== undefined &&
+      (!Array.isArray(workspacePolicy.writable_roots) ||
+        workspacePolicy.writable_roots.some((entry) => typeof entry !== 'string'))
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
+type CodexClientEventListener<T> = (event: T) => void;
+
+export interface ConversationPathEventMessage {
+  type: 'conversation_path';
+  conversation_id: string;
+  path: string;
+}
+
+export interface ShutdownCompleteEventMessage {
+  type: 'shutdown_complete';
+}
+
+export interface TurnContextEventMessage {
+  type: 'turn_context';
+  cwd: string;
+  approval_policy: AskForApproval;
+  sandbox_policy: SandboxPolicy;
+  model: string;
+  effort?: ReasoningEffort | null;
+  summary: ReasoningSummary;
+}
+
+export interface CodexClient {
+  on(event: 'conversationPath', listener: CodexClientEventListener<ConversationPathEventMessage>): this;
+  on(event: 'shutdownComplete', listener: CodexClientEventListener<ShutdownCompleteEventMessage>): this;
+  on(event: 'turnContext', listener: CodexClientEventListener<TurnContextEventMessage>): this;
+
+  once(event: 'conversationPath', listener: CodexClientEventListener<ConversationPathEventMessage>): this;
+  once(event: 'shutdownComplete', listener: CodexClientEventListener<ShutdownCompleteEventMessage>): this;
+  once(event: 'turnContext', listener: CodexClientEventListener<TurnContextEventMessage>): this;
+
+  off(event: 'conversationPath', listener: CodexClientEventListener<ConversationPathEventMessage>): this;
+  off(event: 'shutdownComplete', listener: CodexClientEventListener<ShutdownCompleteEventMessage>): this;
+  off(event: 'turnContext', listener: CodexClientEventListener<TurnContextEventMessage>): this;
+
+  on(event: string, listener: (...args: unknown[]) => void): this;
+  once(event: string, listener: (...args: unknown[]) => void): this;
+  off(event: string, listener: (...args: unknown[]) => void): this;
 }
 
 function expandHomePath(input: string): string {
