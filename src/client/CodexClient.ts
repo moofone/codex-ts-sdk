@@ -145,7 +145,10 @@ export class CodexClient extends EventEmitter {
 
     const overrides = formatOverrides(options.overrides);
     try {
-      this.session = await this.native.createConversation(overrides ? { overrides } : undefined);
+      this.session = await this.withConfiguredTimeout(
+        this.native.createConversation(overrides ? { overrides } : undefined),
+        'create conversation',
+      );
     } catch (error) {
       throw this.wrapSessionError('Failed to create Codex conversation', error, options.overrides);
     }
@@ -422,13 +425,24 @@ export class CodexClient extends EventEmitter {
   }
 
   async testModelAvailability(model: string): Promise<boolean> {
+    let provisional: CodexSessionHandle | undefined;
     try {
-      await this.createConversation({
-        overrides: { model },
-      });
-      await this.closeSession();
+      await this.connect();
+      if (!this.native) {
+        throw new CodexConnectionError('Native bindings not initialised');
+      }
+
+      const overrides = formatOverrides({ model });
+      provisional = await this.withConfiguredTimeout(
+        this.native.createConversation(overrides ? { overrides } : undefined),
+        'create conversation',
+      );
+      await this.withConfiguredTimeout(provisional.close(), 'close test conversation');
       return true;
     } catch {
+      if (provisional) {
+        await provisional.close().catch(() => undefined);
+      }
       return false;
     }
   }
@@ -478,7 +492,7 @@ export class CodexClient extends EventEmitter {
   private async submit(session: CodexSessionHandle, submission: SubmissionEnvelope): Promise<void> {
     const processed = await this.applyBeforeSubmit(submission);
     try {
-      await session.submit(JSON.stringify(processed));
+      await this.withConfiguredTimeout(session.submit(JSON.stringify(processed)), 'submit request');
     } catch (error) {
       throw this.wrapSessionError('Failed to submit request to Codex session', error, processed);
     }
@@ -537,6 +551,94 @@ export class CodexClient extends EventEmitter {
     }
   }
 
+  private async emitSafely(
+    eventName: string,
+    args: unknown[],
+    context: string,
+    event?: CodexEvent,
+  ): Promise<void> {
+    if (eventName === 'error') {
+      if (this.listenerCount('error') === 0) {
+        return;
+      }
+    }
+
+    try {
+      this.emit(eventName, ...args);
+    } catch (error) {
+      await this.handleListenerError(error, context, event);
+    }
+  }
+
+  private async handleListenerError(
+    error: unknown,
+    context: string,
+    event?: CodexEvent,
+    skipErrorEmit = false,
+  ): Promise<void> {
+    log(this.logger, 'warn', 'Event listener threw', {
+      context,
+      eventType: event?.msg?.type,
+      eventId: event?.id,
+      error: errorMessage(error),
+    });
+
+    if (!skipErrorEmit && this.listenerCount('error') > 0) {
+      try {
+        this.emit('error', error);
+      } catch (listenerError) {
+        log(this.logger, 'warn', 'Error listener threw', {
+          error: errorMessage(listenerError),
+        });
+      }
+    }
+
+    await this.dispatchOnError(error);
+  }
+
+  private withConfiguredTimeout<T>(promise: Promise<T>, context: string): Promise<T> {
+    const timeoutMs = this.config.timeoutMs;
+    if (!timeoutMs || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+      return promise;
+    }
+
+    return new Promise<T>((resolve, reject) => {
+      let settled = false;
+      let timeout: NodeJS.Timeout | undefined;
+
+      const finalize = (callback: () => void) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+        callback();
+      };
+
+      promise.then(
+        (value) => {
+          finalize(() => resolve(value));
+        },
+        (error) => {
+          finalize(() => reject(error));
+        },
+      );
+
+      timeout = setTimeout(() => {
+        finalize(() => {
+          reject(
+            new CodexSessionError(`Codex ${context} timed out after ${timeoutMs}ms`, {
+              context,
+              timeoutMs,
+            }),
+          );
+        });
+      }, timeoutMs);
+    });
+  }
+
   private startEventLoop(): void {
     if (!this.session || this.eventLoop) {
       return;
@@ -550,9 +652,15 @@ export class CodexClient extends EventEmitter {
         while (!this.abortEventLoop) {
           let payload: string | null;
           try {
-            payload = await session.nextEvent();
+            payload = await this.withConfiguredTimeout(session.nextEvent(), 'next event');
           } catch (error) {
-            this.emit('error', error);
+            if (this.listenerCount('error') > 0) {
+              try {
+                this.emit('error', error);
+              } catch (listenerError) {
+                await this.handleListenerError(listenerError, 'error listener', undefined, true);
+              }
+            }
             await this.dispatchOnError(error);
             break;
           }
@@ -572,54 +680,99 @@ export class CodexClient extends EventEmitter {
             continue;
           }
 
-          this.emit('event', event);
+          await this.emitSafely('event', [event], 'event listener', event);
           await this.dispatchAfterEvent(event);
-          this.routeEvent(event);
+          await this.routeEvent(event);
         }
       } finally {
         this.eventLoop = undefined;
-        this.emit(EVENT_STREAM_CLOSED);
+        await this.emitSafely(EVENT_STREAM_CLOSED, [], 'event stream closed listener');
       }
     })();
   }
 
-  private routeEvent(event: CodexEvent): void {
+  private async routeEvent(event: CodexEvent): Promise<void> {
     switch (event.msg.type) {
       case 'session_configured':
-        this.emit('sessionConfigured', event.msg as SessionConfiguredEventMessage);
+        await this.emitSafely(
+          'sessionConfigured',
+          [event.msg as SessionConfiguredEventMessage],
+          'sessionConfigured listener',
+          event,
+        );
         break;
       case 'exec_approval_request':
-        this.emit('execCommandApproval', event.msg as ExecApprovalRequestEventMessage);
+        await this.emitSafely(
+          'execCommandApproval',
+          [event.msg as ExecApprovalRequestEventMessage],
+          'execCommandApproval listener',
+          event,
+        );
         break;
       case 'apply_patch_approval_request':
-        this.emit('applyPatchApproval', event.msg as ApplyPatchApprovalRequestEventMessage);
+        await this.emitSafely(
+          'applyPatchApproval',
+          [event.msg as ApplyPatchApprovalRequestEventMessage],
+          'applyPatchApproval listener',
+          event,
+        );
         break;
       case 'notification':
-        this.emit('notification', event.msg as NotificationEventMessage);
+        await this.emitSafely(
+          'notification',
+          [event.msg as NotificationEventMessage],
+          'notification listener',
+          event,
+        );
         break;
       case 'conversation_path':
-        this.emit('conversationPath', event.msg);
+        await this.emitSafely('conversationPath', [event.msg], 'conversationPath listener', event);
         break;
       case 'shutdown_complete':
-        this.emit('shutdownComplete', event.msg);
+        await this.emitSafely('shutdownComplete', [event.msg], 'shutdownComplete listener', event);
         break;
       case 'turn_context':
-        this.emit('turnContext', event.msg);
+        await this.emitSafely('turnContext', [event.msg], 'turnContext listener', event);
         break;
       case 'get_history_entry_response':
-        this.emit('historyEntry', event.msg as GetHistoryEntryResponseEventMessage);
+        await this.emitSafely(
+          'historyEntry',
+          [event.msg as GetHistoryEntryResponseEventMessage],
+          'historyEntry listener',
+          event,
+        );
         break;
       case 'mcp_list_tools_response':
-        this.emit('mcpTools', event.msg as McpListToolsResponseEventMessage);
+        await this.emitSafely(
+          'mcpTools',
+          [event.msg as McpListToolsResponseEventMessage],
+          'mcpTools listener',
+          event,
+        );
         break;
       case 'list_custom_prompts_response':
-        this.emit('customPrompts', event.msg as ListCustomPromptsResponseEventMessage);
+        await this.emitSafely(
+          'customPrompts',
+          [event.msg as ListCustomPromptsResponseEventMessage],
+          'customPrompts listener',
+          event,
+        );
         break;
       case 'entered_review_mode':
-        this.emit('enteredReviewMode', event.msg as EnteredReviewModeEventMessage);
+        await this.emitSafely(
+          'enteredReviewMode',
+          [event.msg as EnteredReviewModeEventMessage],
+          'enteredReviewMode listener',
+          event,
+        );
         break;
       case 'exited_review_mode':
-        this.emit('exitedReviewMode', event.msg as ExitedReviewModeEventMessage);
+        await this.emitSafely(
+          'exitedReviewMode',
+          [event.msg as ExitedReviewModeEventMessage],
+          'exitedReviewMode listener',
+          event,
+        );
         break;
       default:
         break;
@@ -636,7 +789,7 @@ export class CodexClient extends EventEmitter {
 
     if (session) {
       try {
-        await session.close();
+        await this.withConfiguredTimeout(session.close(), 'close session');
       } catch (error) {
         log(this.logger, 'warn', 'Failed to close Codex session', {
           error: error instanceof Error ? error.message : String(error),
@@ -650,7 +803,7 @@ export class CodexClient extends EventEmitter {
         new Promise<void>((resolve) => setTimeout(resolve, 2000)),
       ]);
     } else {
-      this.emit(EVENT_STREAM_CLOSED);
+      await this.emitSafely(EVENT_STREAM_CLOSED, [], 'event stream closed listener');
     }
   }
 

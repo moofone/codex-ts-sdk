@@ -433,6 +433,35 @@ describe('CodexClient advanced behaviour', () => {
     expect(available).toBe(false);
   });
 
+  it('does not close active sessions when testing model availability', async () => {
+    const tempClose = vi.fn().mockResolvedValue(undefined);
+    const tempSession: MockSessionHandle = {
+      conversationId: 'temp-123',
+      submit: vi.fn(),
+      nextEvent: vi.fn(),
+      close: tempClose,
+    };
+
+    createConversationMock.mockReset();
+    createConversationMock
+      .mockResolvedValueOnce(session)
+      .mockResolvedValueOnce(tempSession)
+      .mockResolvedValue(session);
+
+    const client = createClient();
+
+    await client.createConversation();
+    const closeCallsBefore = closeMock.mock.calls.length;
+
+    const available = await client.testModelAvailability('codex');
+
+    expect(available).toBe(true);
+    expect(closeMock.mock.calls.length).toBe(closeCallsBefore);
+    expect(tempClose).toHaveBeenCalledTimes(1);
+
+    await client.close();
+  });
+
   it('requires native bindings before creating conversations', async () => {
     const client = createClient();
     client.connect = vi.fn().mockResolvedValue(undefined);
@@ -448,6 +477,25 @@ describe('CodexClient advanced behaviour', () => {
     await client.createConversation();
 
     await expect(client.sendMessage('hi')).rejects.toBeInstanceOf(CodexSessionError);
+  });
+
+  it('rejects submissions that exceed the configured timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      submitMock.mockImplementation(() => new Promise(() => undefined));
+
+      const client = createClient({ timeoutMs: 100 });
+      await client.createConversation();
+
+      const promise = client.sendMessage('hello');
+      const expectation = expect(promise).rejects.toBeInstanceOf(CodexSessionError);
+      await vi.advanceTimersByTimeAsync(100);
+      await expectation;
+
+      await client.close().catch(() => undefined);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('throws when sending messages without a session', async () => {
@@ -569,6 +617,56 @@ describe('CodexClient advanced behaviour', () => {
     await client.close().catch(() => undefined);
   });
 
+  it('continues streaming when user listeners throw', async () => {
+    nextEventMock
+      .mockResolvedValueOnce(JSON.stringify({ id: 'evt-1', msg: { type: 'notification' } }))
+      .mockResolvedValueOnce(null);
+
+    const warn = vi.fn();
+    const errorListener = vi.fn();
+    const pluginOnError = vi.fn();
+
+    const client = createClient({
+      logger: { warn },
+      plugins: [{ name: 'observer', onError: pluginOnError }],
+    });
+
+    const eventListener = vi.fn(() => {
+      throw new Error('event boom');
+    });
+    const notificationListener = vi.fn(() => {
+      throw new Error('notification boom');
+    });
+
+    client.on('event', eventListener);
+    client.on('notification', notificationListener);
+    client.on('error', errorListener);
+
+    await client.createConversation();
+
+    await Promise.resolve();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(eventListener).toHaveBeenCalledTimes(1);
+    expect(notificationListener).toHaveBeenCalledTimes(1);
+    expect(errorListener).toHaveBeenCalledTimes(2);
+    expect(errorListener.mock.calls.map((call) => (call[0] as Error).message)).toEqual([
+      'event boom',
+      'notification boom',
+    ]);
+    expect(pluginOnError).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenCalledWith(
+      'Event listener threw',
+      expect.objectContaining({ context: 'event listener', eventType: 'notification', error: 'event boom' }),
+    );
+    expect(warn).toHaveBeenCalledWith(
+      'Event listener threw',
+      expect.objectContaining({ context: 'notification listener', eventType: 'notification', error: 'notification boom' }),
+    );
+
+    await client.close();
+  });
+
   it('emits specialised events via routeEvent mapping', async () => {
     nextEventMock
       .mockResolvedValueOnce(JSON.stringify({ id: 'evt-1', msg: { type: 'session_configured' } }))
@@ -601,8 +699,10 @@ describe('CodexClient advanced behaviour', () => {
     expect(patch).toHaveBeenCalled();
     expect(notification).toHaveBeenCalled();
 
-    const internal = client as unknown as { routeEvent(event: { msg: { type: string } }): void };
-    expect(() => internal.routeEvent({ msg: { type: 'unknown' } })).not.toThrow();
+    const internal = client as unknown as {
+      routeEvent(event: { msg: { type: string } }): Promise<void>;
+    };
+    await expect(internal.routeEvent({ msg: { type: 'unknown' } })).resolves.toBeUndefined();
   });
 
   it('resolves CODEX_HOME from environment and expands ~ patterns', async () => {

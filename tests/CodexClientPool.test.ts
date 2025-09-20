@@ -68,4 +68,20 @@ describe('CodexClientPool', () => {
 
     expect(instances.every((c) => c.close.mock.calls.length >= 1)).toBe(true);
   });
+
+  it('rejects pending waiters when closed', async () => {
+    const pool = new CodexClientPool({ codexHome: '/codex' }, 1);
+    const first = await pool.acquire();
+    const pending = pool.acquire();
+
+    const closePromise = pool.close();
+    await expect(pending).rejects.toThrow('CodexClientPool is closed');
+    await closePromise;
+
+    // ensure busy client was asked to close during shutdown
+    expect(instances[0]?.close).toHaveBeenCalled();
+
+    // release after close should be harmless
+    pool.release(first);
+  });
 });

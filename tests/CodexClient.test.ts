@@ -382,9 +382,11 @@ describe('CodexClient', () => {
     client.on('enteredReviewMode', enteredReviewListener);
     client.on('exitedReviewMode', exitedReviewListener);
 
-    const clientWithRoute = client as unknown as { routeEvent: (event: ReturnType<typeof makeEvent>) => void };
+    const clientWithRoute = client as unknown as {
+      routeEvent: (event: ReturnType<typeof makeEvent>) => Promise<void>;
+    };
 
-    clientWithRoute.routeEvent(
+    await clientWithRoute.routeEvent(
       makeEvent('session_configured', {
         session_id: 'conv-123',
         model: 'gpt-5-codex',
@@ -393,11 +395,11 @@ describe('CodexClient', () => {
         rollout_path: '/tmp/rollout.log',
       }),
     );
-    clientWithRoute.routeEvent(
+    await clientWithRoute.routeEvent(
       makeEvent('conversation_path', { conversation_id: 'conv-123', path: '/tmp/history' }),
     );
-    clientWithRoute.routeEvent(makeEvent('shutdown_complete'));
-    clientWithRoute.routeEvent(
+    await clientWithRoute.routeEvent(makeEvent('shutdown_complete'));
+    await clientWithRoute.routeEvent(
       makeEvent('exec_approval_request', {
         call_id: 'exec-1',
         command: ['ls', '-la'],
@@ -406,7 +408,7 @@ describe('CodexClient', () => {
         id: 'approval-1',
       }),
     );
-    clientWithRoute.routeEvent(
+    await clientWithRoute.routeEvent(
       makeEvent('apply_patch_approval_request', {
         call_id: 'patch-1',
         changes: {
@@ -422,8 +424,10 @@ describe('CodexClient', () => {
         id: 'patch-1',
       }),
     );
-    clientWithRoute.routeEvent(makeEvent('notification', { content: 'background work done' }));
-    clientWithRoute.routeEvent(
+    await clientWithRoute.routeEvent(
+      makeEvent('notification', { content: 'background work done' }),
+    );
+    await clientWithRoute.routeEvent(
       makeEvent('turn_context', {
         cwd: '/tmp',
         approval_policy: 'on-request',
@@ -438,14 +442,14 @@ describe('CodexClient', () => {
         summary: 'auto',
       }),
     );
-    clientWithRoute.routeEvent(
+    await clientWithRoute.routeEvent(
       makeEvent('get_history_entry_response', {
         offset: 1,
         log_id: 4,
         entry: { conversation_id: 'conv-123', ts: 123, text: 'hi' },
       }),
     );
-    clientWithRoute.routeEvent(
+    await clientWithRoute.routeEvent(
       makeEvent('mcp_list_tools_response', {
         tools: {
           'example/tool': {
@@ -454,18 +458,18 @@ describe('CodexClient', () => {
         },
       }),
     );
-    clientWithRoute.routeEvent(
+    await clientWithRoute.routeEvent(
       makeEvent('list_custom_prompts_response', {
         custom_prompts: [{ name: 'default', path: '/tmp/prompt', content: 'prompt' }],
       }),
     );
-    clientWithRoute.routeEvent(
+    await clientWithRoute.routeEvent(
       makeEvent('entered_review_mode', {
         prompt: 'Check this',
         user_facing_hint: 'Focus on tests',
       }),
     );
-    clientWithRoute.routeEvent(
+    await clientWithRoute.routeEvent(
       makeEvent('exited_review_mode', {
         review_output: {
           findings: [],

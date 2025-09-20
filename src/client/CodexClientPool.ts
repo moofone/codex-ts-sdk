@@ -4,7 +4,10 @@ import type { CodexClientConfig } from '../types/options';
 export class CodexClientPool {
   private readonly idle: CodexClient[] = [];
   private readonly busy = new Set<CodexClient>();
-  private readonly waiters: Array<(client: CodexClient) => void> = [];
+  private readonly waiters: Array<{
+    resolve: (client: CodexClient) => void;
+    reject: (error: unknown) => void;
+  }> = [];
   private size = 0;
 
   constructor(private readonly config: CodexClientConfig, private readonly maxSize = 4) {}
@@ -23,10 +26,13 @@ export class CodexClientPool {
       return client;
     }
 
-    return new Promise<CodexClient>((resolve) => {
-      this.waiters.push((client) => {
-        this.busy.add(client);
-        resolve(client);
+    return new Promise<CodexClient>((resolve, reject) => {
+      this.waiters.push({
+        resolve: (client) => {
+          this.busy.add(client);
+          resolve(client);
+        },
+        reject,
       });
     });
   }
@@ -39,7 +45,7 @@ export class CodexClientPool {
     this.busy.delete(client);
     const waiter = this.waiters.shift();
     if (waiter) {
-      waiter(client);
+      waiter.resolve(client);
       return;
     }
 
@@ -59,6 +65,13 @@ export class CodexClientPool {
     const toClose = [...this.idle, ...this.busy];
     this.idle.length = 0;
     this.busy.clear();
+    const pending = this.waiters.splice(0);
+    if (pending.length > 0) {
+      const error = new Error('CodexClientPool is closed');
+      for (const waiter of pending) {
+        waiter.reject(error);
+      }
+    }
     await Promise.allSettled(toClose.map((client) => client.close().catch(() => undefined)));
     this.size = 0;
   }
