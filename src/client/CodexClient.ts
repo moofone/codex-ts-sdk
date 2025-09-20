@@ -456,15 +456,17 @@ export class CodexClient extends EventEmitter {
       throw new TypeError('review request must be an object');
     }
 
-    const candidate = request as Record<string, unknown>;
-    const prompt = candidate.prompt;
+    const { prompt } = request;
     if (typeof prompt !== 'string' || !prompt.trim()) {
       throw new TypeError('review prompt must be a non-empty string');
     }
 
-    const snakeCase = candidate.user_facing_hint;
-    const camelCase = candidate.userFacingHint;
-    const hintSource = snakeCase ?? camelCase;
+    let hintSource: unknown;
+    if ('user_facing_hint' in request) {
+      hintSource = request.user_facing_hint;
+    } else if ('userFacingHint' in request) {
+      hintSource = request.userFacingHint;
+    }
     if (typeof hintSource !== 'string' || !hintSource.trim()) {
       throw new TypeError('review userFacingHint must be a non-empty string');
     }
@@ -519,6 +521,65 @@ export class CodexClient extends EventEmitter {
         });
       }
     }
+  }
+
+  private isGetHistoryEntryResponseEventMessage(
+    msg: CodexEventMessage,
+  ): msg is GetHistoryEntryResponseEventMessage {
+    if (msg.type !== 'get_history_entry_response') {
+      return false;
+    }
+
+    const candidate = msg as { offset?: unknown; log_id?: unknown };
+    return typeof candidate.offset === 'number' && typeof candidate.log_id === 'number';
+  }
+
+  private isMcpListToolsResponseEventMessage(
+    msg: CodexEventMessage,
+  ): msg is McpListToolsResponseEventMessage {
+    if (msg.type !== 'mcp_list_tools_response') {
+      return false;
+    }
+
+    const candidate = msg as { tools?: unknown };
+    return typeof candidate.tools === 'object' && candidate.tools !== null;
+  }
+
+  private isListCustomPromptsResponseEventMessage(
+    msg: CodexEventMessage,
+  ): msg is ListCustomPromptsResponseEventMessage {
+    if (msg.type !== 'list_custom_prompts_response') {
+      return false;
+    }
+
+    const candidate = msg as { custom_prompts?: unknown };
+    if (!Array.isArray(candidate.custom_prompts)) {
+      return false;
+    }
+
+    return candidate.custom_prompts.every((prompt) => {
+      if (!prompt || typeof prompt !== 'object') {
+        return false;
+      }
+
+      const entry = prompt as { name?: unknown; path?: unknown; content?: unknown };
+      return (
+        typeof entry.name === 'string' &&
+        typeof entry.path === 'string' &&
+        typeof entry.content === 'string'
+      );
+    });
+  }
+
+  private isEnteredReviewModeEventMessage(
+    msg: CodexEventMessage,
+  ): msg is EnteredReviewModeEventMessage {
+    if (msg.type !== 'entered_review_mode') {
+      return false;
+    }
+
+    const candidate = msg as { prompt?: unknown; user_facing_hint?: unknown };
+    return typeof candidate.prompt === 'string' && typeof candidate.user_facing_hint === 'string';
   }
 
   private async dispatchOnError(error: unknown): Promise<void> {
@@ -607,16 +668,24 @@ export class CodexClient extends EventEmitter {
         this.emit('turnContext', event.msg);
         break;
       case 'get_history_entry_response':
-        this.emit('historyEntry', event.msg as GetHistoryEntryResponseEventMessage);
+        if (this.isGetHistoryEntryResponseEventMessage(event.msg)) {
+          this.emit('historyEntry', event.msg);
+        }
         break;
       case 'mcp_list_tools_response':
-        this.emit('mcpTools', event.msg as McpListToolsResponseEventMessage);
+        if (this.isMcpListToolsResponseEventMessage(event.msg)) {
+          this.emit('mcpTools', event.msg);
+        }
         break;
       case 'list_custom_prompts_response':
-        this.emit('customPrompts', event.msg as ListCustomPromptsResponseEventMessage);
+        if (this.isListCustomPromptsResponseEventMessage(event.msg)) {
+          this.emit('customPrompts', event.msg);
+        }
         break;
       case 'entered_review_mode':
-        this.emit('enteredReviewMode', event.msg as EnteredReviewModeEventMessage);
+        if (this.isEnteredReviewModeEventMessage(event.msg)) {
+          this.emit('enteredReviewMode', event.msg);
+        }
         break;
       case 'exited_review_mode':
         this.emit('exitedReviewMode', event.msg as ExitedReviewModeEventMessage);
@@ -790,17 +859,17 @@ export interface NotificationEventMessage extends CodexEventMessage {
   content?: string;
 }
 
-export interface ConversationPathEventMessage {
+export interface ConversationPathEventMessage extends CodexEventMessage {
   type: 'conversation_path';
   conversation_id: string;
   path: string;
 }
 
-export interface ShutdownCompleteEventMessage {
+export interface ShutdownCompleteEventMessage extends CodexEventMessage {
   type: 'shutdown_complete';
 }
 
-export interface TurnContextEventMessage {
+export interface TurnContextEventMessage extends CodexEventMessage {
   type: 'turn_context';
   cwd: string;
   approval_policy: AskForApproval;
@@ -816,7 +885,7 @@ export interface HistoryEntryEvent {
   text: string;
 }
 
-export interface GetHistoryEntryResponseEventMessage {
+export interface GetHistoryEntryResponseEventMessage extends CodexEventMessage {
   type: 'get_history_entry_response';
   offset: number;
   log_id: number;
@@ -825,7 +894,7 @@ export interface GetHistoryEntryResponseEventMessage {
 
 export type McpToolDefinition = Record<string, unknown>;
 
-export interface McpListToolsResponseEventMessage {
+export interface McpListToolsResponseEventMessage extends CodexEventMessage {
   type: 'mcp_list_tools_response';
   tools: Record<string, McpToolDefinition>;
 }
@@ -836,7 +905,7 @@ export interface CustomPromptDefinition {
   content: string;
 }
 
-export interface ListCustomPromptsResponseEventMessage {
+export interface ListCustomPromptsResponseEventMessage extends CodexEventMessage {
   type: 'list_custom_prompts_response';
   custom_prompts: CustomPromptDefinition[];
 }
@@ -866,11 +935,11 @@ export interface ReviewOutputEventMessage {
   overall_confidence_score: number;
 }
 
-export interface EnteredReviewModeEventMessage extends ReviewRequest {
+export interface EnteredReviewModeEventMessage extends ReviewRequest, CodexEventMessage {
   type: 'entered_review_mode';
 }
 
-export interface ExitedReviewModeEventMessage {
+export interface ExitedReviewModeEventMessage extends CodexEventMessage {
   type: 'exited_review_mode';
   review_output?: ReviewOutputEventMessage;
 }
