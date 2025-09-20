@@ -10,6 +10,12 @@ let submitMock: Mock;
 let nextEventMock: AsyncEventMock;
 let closeMock: Mock;
 const nativeOptions: Array<{ codexHome?: string }> = [];
+const workspaceWriteBasePolicy = {
+  mode: 'workspace-write' as const,
+  network_access: false,
+  exclude_tmpdir_env_var: false,
+  exclude_slash_tmp: false,
+};
 
 vi.mock('../src/internal/nativeModule', async () => {
   const actual = await vi.importActual<typeof import('../src/internal/nativeModule')>(
@@ -203,6 +209,36 @@ describe('CodexClient', () => {
     await client.close().catch(() => undefined);
   });
 
+  it('emits error and stops event loop when nextEvent rejects', async () => {
+    const onErrorHook = vi.fn();
+    const client = createClient({
+      plugins: [
+        {
+          name: 'error-listener',
+          onError: onErrorHook,
+        },
+      ],
+    });
+
+    const eventLoopError = new Error('event-loop-failure');
+    nextEventMock.mockRejectedValueOnce(eventLoopError);
+
+    const errorEvent = new Promise<unknown>((resolve) => client.once('error', resolve));
+    const closedEvent = new Promise<void>((resolve) => client.once('eventStreamClosed', () => resolve()));
+
+    await client.createConversation();
+
+    const emittedError = await errorEvent;
+    expect(emittedError).toBe(eventLoopError);
+    expect(onErrorHook).toHaveBeenCalledTimes(1);
+    expect(onErrorHook).toHaveBeenCalledWith(eventLoopError);
+
+    await closedEvent;
+    expect(nextEventMock).toHaveBeenCalledTimes(1);
+
+    await client.close().catch(() => undefined);
+  });
+
   it('overrides turn context through submissions', async () => {
     const client = createClient();
     await client.createConversation();
@@ -233,10 +269,90 @@ describe('CodexClient', () => {
     const client = createClient();
     await client.createConversation();
 
+    await expect(client.overrideTurnContext(undefined as any)).rejects.toThrow(
+      /requires an options object/,
+    );
     await expect(client.overrideTurnContext({})).rejects.toThrow(/at least one override property/);
     await expect(
       client.overrideTurnContext({ effort: 'invalid' as unknown as 'minimal' }),
     ).rejects.toThrow(/effort must be minimal/);
+    await expect(client.overrideTurnContext({ cwd: '' })).rejects.toThrow(/cwd must be a non-empty/);
+    await expect(
+      client.overrideTurnContext({ approvalPolicy: 'invalid' as unknown as 'never' }),
+    ).rejects.toThrow(/approvalPolicy must be a valid AskForApproval value/);
+    await expect(client.overrideTurnContext({ model: '   ' })).rejects.toThrow(
+      /model must be a non-empty string/,
+    );
+    await expect(
+      client.overrideTurnContext({ summary: 'invalid' as unknown as 'auto' }),
+    ).rejects.toThrow(/summary must be auto, concise, detailed or none/);
+
+    await client.close().catch(() => undefined);
+  });
+
+  it('rejects non-object sandbox policies during override', async () => {
+    await expectInvalidSandboxPolicy(null);
+  });
+
+  it.each([
+    ['a non-boolean network_access value', { network_access: 'yes' }],
+    ['a non-boolean exclude_tmpdir_env_var value', { exclude_tmpdir_env_var: 'nope' }],
+    ['a non-boolean exclude_slash_tmp value', { exclude_slash_tmp: 'nah' }],
+  ])('rejects workspace-write sandbox policy with %s', async (_, overrides) => {
+    await expectInvalidSandboxPolicy({ ...workspaceWriteBasePolicy, ...overrides });
+  });
+
+  it.each([
+    ['a non-array writable_roots value', { writable_roots: 'not-an-array' }],
+    ['a writable_roots entry that is not a string', { writable_roots: ['/tmp', 42] }],
+  ])('rejects workspace-write sandbox policy with %s', async (_, overrides) => {
+    await expectInvalidSandboxPolicy({ ...workspaceWriteBasePolicy, ...overrides });
+  });
+
+  it('rejects sandbox policies with unknown modes', async () => {
+    await expectInvalidSandboxPolicy({ mode: 'unsupported-mode' });
+  });
+
+  it('overrides turn context with workspace-write sandbox policy', async () => {
+    const client = createClient();
+    await client.createConversation();
+    nextEventMock.mockResolvedValueOnce(null);
+
+    await client.overrideTurnContext({
+      sandboxPolicy: {
+        ...workspaceWriteBasePolicy,
+        writable_roots: ['/workspace', '/tmp/project'],
+      } as any,
+    });
+
+    const payload = JSON.parse(submitMock.mock.calls.at(-1)?.[0] ?? '{}');
+    expect(payload.op).toMatchObject({
+      sandbox_policy: {
+        mode: 'workspace-write',
+        network_access: false,
+        exclude_tmpdir_env_var: false,
+        exclude_slash_tmp: false,
+        writable_roots: ['/workspace', '/tmp/project'],
+      },
+    });
+
+    await client.close();
+  });
+
+  it('overrides turn context with model resolution when effort is omitted', async () => {
+    const client = createClient();
+    await client.createConversation();
+    nextEventMock.mockResolvedValueOnce(null);
+
+    await client.overrideTurnContext({ model: 'codex' });
+
+    const payload = JSON.parse(submitMock.mock.calls.at(-1)?.[0] ?? '{}');
+    expect(payload.op).toMatchObject({
+      model: 'gpt-5-codex',
+    });
+    expect(payload.op.effort).toBeUndefined();
+
+    await client.close();
   });
 
   it('adds entries to history via submissions', async () => {
@@ -254,7 +370,10 @@ describe('CodexClient', () => {
     const client = createClient();
     await client.createConversation();
 
+    await expect(client.addToHistory(42 as any)).rejects.toThrow(/text must be a string/);
     await expect(client.addToHistory('   ')).rejects.toThrow(/cannot be empty/);
+
+    await client.close();
   });
 
   it('requests specific history entries', async () => {
@@ -276,10 +395,13 @@ describe('CodexClient', () => {
     const client = createClient();
     await client.createConversation();
 
+    await expect(client.getHistoryEntry(null as any)).rejects.toThrow(/options must be an object/);
     await expect(client.getHistoryEntry({ offset: -1, logId: 2 })).rejects.toThrow(/non-negative/);
     await expect(client.getHistoryEntry({ offset: 1.2, logId: 2 })).rejects.toThrow(/non-negative/);
     await expect(client.getHistoryEntry({ offset: 1, logId: -2 })).rejects.toThrow(/non-negative/);
     await expect(client.getHistoryEntry({ offset: 1, logId: 3.1 })).rejects.toThrow(/non-negative/);
+
+    await client.close().catch(() => undefined);
   });
 
   it('requests MCP tool listings', async () => {
@@ -333,11 +455,14 @@ describe('CodexClient', () => {
     const client = createClient();
     await client.createConversation();
 
+    await expect(client.review(null as any)).rejects.toThrow(/must be an object/);
     await expect(client.review({ prompt: '', userFacingHint: 'ok' })).rejects.toThrow(/non-empty string/);
     await expect(client.review({ prompt: 'Check', userFacingHint: '' })).rejects.toThrow(/non-empty string/);
     await expect(client.review({ prompt: 'Check' } as unknown as ReviewRequestInput)).rejects.toThrow(
       /userFacingHint must be a non-empty string/,
     );
+
+    await client.close().catch(() => undefined);
   });
 
   describe('overrideTurnContext sandbox policy validation', () => {
@@ -726,4 +851,15 @@ function makeEvent(type: string, extra: Record<string, unknown> = {}) {
       ...extra,
     },
   };
+}
+
+async function expectInvalidSandboxPolicy(policy: unknown): Promise<void> {
+  const client = createClient();
+  try {
+    await client.createConversation();
+    const overridePromise = client.overrideTurnContext({ sandboxPolicy: policy as any });
+    await expect(overridePromise).rejects.toThrow(/sandboxPolicy must be a valid SandboxPolicy value/);
+  } finally {
+    await client.close().catch(() => undefined);
+  }
 }
