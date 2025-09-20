@@ -1,6 +1,6 @@
 {
   "name": "codex-ts-sdk",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "TypeScript client for Codex native runtime",
   "license": "MIT",
   "type": "module",

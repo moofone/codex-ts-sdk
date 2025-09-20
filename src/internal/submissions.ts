@@ -4,6 +4,7 @@ import type { SandboxPolicy } from '../bindings/SandboxPolicy';
 import type { ReasoningEffort } from '../bindings/ReasoningEffort';
 import type { ReasoningSummary } from '../bindings/ReasoningSummary';
 import type { ReviewDecision } from '../bindings/ReviewDecision';
+import type { OverrideTurnContextOptions } from '../types/options';
 
 export interface SubmissionEnvelope<T extends SubmissionOp = SubmissionOp> {
   id: string;
@@ -119,19 +120,26 @@ export interface CreateUserTurnSubmissionOptions {
   summary: ReasoningSummary;
 }
 
-export interface ApprovalSubmissionOptions {
+export interface BaseApprovalSubmissionOptions {
   id: string;
   decision: 'approve' | 'reject';
 }
 
-export interface CreateOverrideTurnContextSubmissionOptions {
-  cwd?: string;
-  approvalPolicy?: AskForApproval;
-  sandboxPolicy?: SandboxPolicy;
-  model?: string;
-  effort?: ReasoningEffort | null;
-  summary?: ReasoningSummary;
+export interface ExecApprovalSubmissionOptions extends BaseApprovalSubmissionOptions {
+  kind: 'exec';
 }
+
+export interface PatchApprovalSubmissionOptions extends BaseApprovalSubmissionOptions {
+  kind?: 'patch';
+}
+
+export type ApprovalSubmissionOptions = BaseApprovalSubmissionOptions;
+
+type PatchOrExecApprovalSubmissionOptions =
+  | ExecApprovalSubmissionOptions
+  | PatchApprovalSubmissionOptions;
+
+export type CreateOverrideTurnContextSubmissionOptions = OverrideTurnContextOptions;
 
 export interface CreateAddToHistorySubmissionOptions {
   text: string;
@@ -239,9 +247,24 @@ export function createExecApprovalSubmission(
 
 export function createPatchApprovalSubmission(
   id: string,
-  options: ApprovalSubmissionOptions,
-): SubmissionEnvelope<PatchApprovalOp> {
+  options: PatchOrExecApprovalSubmissionOptions,
+): SubmissionEnvelope<ExecApprovalOp | PatchApprovalOp> {
   const decision: ReviewDecision = options.decision === 'approve' ? 'approved' : 'denied';
+
+  if (options.kind === 'exec') {
+    return {
+      id,
+      op: {
+        type: 'exec_approval',
+        id: options.id,
+        decision,
+      },
+    };
+  }
+
+  if (options.kind !== undefined && options.kind !== 'patch') {
+    throw new TypeError(`Unsupported approval submission kind: ${String(options.kind)}`);
+  }
 
   return {
     id,
