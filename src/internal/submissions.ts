@@ -4,6 +4,7 @@ import type { SandboxPolicy } from '../bindings/SandboxPolicy';
 import type { ReasoningEffort } from '../bindings/ReasoningEffort';
 import type { ReasoningSummary } from '../bindings/ReasoningSummary';
 import type { ReviewDecision } from '../bindings/ReviewDecision';
+import type { OverrideTurnContextOptions } from '../types/options';
 
 export interface SubmissionEnvelope<T extends SubmissionOp = SubmissionOp> {
   id: string;
@@ -122,16 +123,10 @@ export interface CreateUserTurnSubmissionOptions {
 export interface ApprovalSubmissionOptions {
   id: string;
   decision: 'approve' | 'reject';
+  kind?: 'exec' | 'patch';
 }
 
-export interface CreateOverrideTurnContextSubmissionOptions {
-  cwd?: string;
-  approvalPolicy?: AskForApproval;
-  sandboxPolicy?: SandboxPolicy;
-  model?: string;
-  effort?: ReasoningEffort | null;
-  summary?: ReasoningSummary;
-}
+export type CreateOverrideTurnContextSubmissionOptions = OverrideTurnContextOptions;
 
 export interface CreateAddToHistorySubmissionOptions {
   text: string;
@@ -239,9 +234,28 @@ export function createExecApprovalSubmission(
 
 export function createPatchApprovalSubmission(
   id: string,
+  options: ApprovalSubmissionOptions & { kind: 'exec' },
+): SubmissionEnvelope<ExecApprovalOp>;
+export function createPatchApprovalSubmission(
+  id: string,
+  options: ApprovalSubmissionOptions & { kind?: 'patch' },
+): SubmissionEnvelope<PatchApprovalOp>;
+export function createPatchApprovalSubmission(
+  id: string,
   options: ApprovalSubmissionOptions,
-): SubmissionEnvelope<PatchApprovalOp> {
+): SubmissionEnvelope<ExecApprovalOp | PatchApprovalOp> {
   const decision: ReviewDecision = options.decision === 'approve' ? 'approved' : 'denied';
+
+  if (options.kind === 'exec') {
+    return {
+      id,
+      op: {
+        type: 'exec_approval',
+        id: options.id,
+        decision,
+      },
+    };
+  }
 
   return {
     id,

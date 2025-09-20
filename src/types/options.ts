@@ -25,6 +25,15 @@ export interface CreateConversationOptions {
   overrides?: Record<string, string>;
 }
 
+export interface OverrideTurnContextOptions {
+  cwd?: string;
+  approvalPolicy?: AskForApproval;
+  sandboxPolicy?: SandboxPolicy;
+  model?: string;
+  effort?: ReasoningEffort | null;
+  summary?: ReasoningSummary;
+}
+
 export interface SendUserTurnOptions {
   cwd?: string;
   approvalPolicy?: AskForApproval;
