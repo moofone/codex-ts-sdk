@@ -5,17 +5,11 @@ export { CodexClientPool } from './client/CodexClientPool';
 export type {
   CodexClientConfig,
   CreateConversationOptions,
-  OverrideTurnContextOptions,
   SendUserTurnOptions,
   SendMessageOptions,
 } from './types/options';
 
 export type { CodexEvent } from './types/events';
-export type {
-  ConversationPathEventMessage,
-  ShutdownCompleteEventMessage,
-  TurnContextEventMessage,
-} from './client/CodexClient';
 export type { SubmissionEnvelope, SubmissionOp, ReviewRequest } from './internal/submissions';
 export type {
   AskForApproval,
