@@ -10,7 +10,7 @@ export type {
 } from './types/options';
 
 export type { CodexEvent } from './types/events';
-export type { SubmissionEnvelope } from './internal/submissions';
+export type { SubmissionEnvelope, SubmissionOp, ReviewRequest } from './internal/submissions';
 export type {
   AskForApproval,
   SandboxPolicy,
