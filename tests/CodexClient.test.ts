@@ -41,7 +41,7 @@ vi.mock('../src/internal/nativeModule', async () => {
 });
 
 import { CodexClient } from '../src/client/CodexClient';
-import type { CodexClientConfig } from '../src/types/options';
+import type { CodexClientConfig, ReviewRequestInput } from '../src/types/options';
 
 interface SessionHandle {
   conversationId: string;
@@ -256,6 +256,89 @@ describe('CodexClient', () => {
     await expect(client.addToHistory('   ')).rejects.toThrow(/cannot be empty/);
   });
 
+  it('requests specific history entries', async () => {
+    const client = createClient();
+    await client.createConversation();
+    nextEventMock.mockResolvedValueOnce(null);
+
+    await client.getHistoryEntry({ offset: 2, logId: 42 });
+
+    const payload = JSON.parse(submitMock.mock.calls[0][0]);
+    expect(payload.op).toEqual({
+      type: 'get_history_entry_request',
+      offset: 2,
+      log_id: 42,
+    });
+  });
+
+  it('validates history entry request options', async () => {
+    const client = createClient();
+    await client.createConversation();
+
+    await expect(client.getHistoryEntry({ offset: -1, logId: 2 })).rejects.toThrow(/non-negative/);
+    await expect(client.getHistoryEntry({ offset: 1.2, logId: 2 })).rejects.toThrow(/non-negative/);
+    await expect(client.getHistoryEntry({ offset: 1, logId: -2 })).rejects.toThrow(/non-negative/);
+    await expect(client.getHistoryEntry({ offset: 1, logId: 3.1 })).rejects.toThrow(/non-negative/);
+  });
+
+  it('requests MCP tool listings', async () => {
+    const client = createClient();
+    await client.createConversation();
+    nextEventMock.mockResolvedValueOnce(null);
+
+    await client.listMcpTools();
+
+    const payload = JSON.parse(submitMock.mock.calls[0][0]);
+    expect(payload.op).toEqual({ type: 'list_mcp_tools' });
+  });
+
+  it('requests custom prompt listings', async () => {
+    const client = createClient();
+    await client.createConversation();
+    nextEventMock.mockResolvedValueOnce(null);
+
+    await client.listCustomPrompts();
+
+    const payload = JSON.parse(submitMock.mock.calls[0][0]);
+    expect(payload.op).toEqual({ type: 'list_custom_prompts' });
+  });
+
+  it('compacts the conversation context', async () => {
+    const client = createClient();
+    await client.createConversation();
+    nextEventMock.mockResolvedValueOnce(null);
+
+    await client.compact();
+
+    const payload = JSON.parse(submitMock.mock.calls[0][0]);
+    expect(payload.op).toEqual({ type: 'compact' });
+  });
+
+  it('submits review requests with normalization', async () => {
+    const client = createClient();
+    await client.createConversation();
+    nextEventMock.mockResolvedValueOnce(null);
+
+    await client.review({ prompt: 'Check this', userFacingHint: 'Be thorough' });
+
+    const payload = JSON.parse(submitMock.mock.calls[0][0]);
+    expect(payload.op).toEqual({
+      type: 'review',
+      review_request: { prompt: 'Check this', user_facing_hint: 'Be thorough' },
+    });
+  });
+
+  it('validates review request input', async () => {
+    const client = createClient();
+    await client.createConversation();
+
+    await expect(client.review({ prompt: '', userFacingHint: 'ok' })).rejects.toThrow(/non-empty string/);
+    await expect(client.review({ prompt: 'Check', userFacingHint: '' })).rejects.toThrow(/non-empty string/);
+    await expect(client.review({ prompt: 'Check' } as unknown as ReviewRequestInput)).rejects.toThrow(
+      /userFacingHint must be a non-empty string/,
+    );
+  });
+
   it('requests conversation path and shutdown submissions', async () => {
     const client = createClient();
     await client.createConversation();
@@ -276,10 +359,20 @@ describe('CodexClient', () => {
     const conversationPathListener = vi.fn();
     const shutdownListener = vi.fn();
     const turnContextListener = vi.fn();
+    const historyEntryListener = vi.fn();
+    const mcpToolsListener = vi.fn();
+    const customPromptsListener = vi.fn();
+    const enteredReviewListener = vi.fn();
+    const exitedReviewListener = vi.fn();
 
     client.on('conversationPath', conversationPathListener);
     client.on('shutdownComplete', shutdownListener);
     client.on('turnContext', turnContextListener);
+    client.on('historyEntry', historyEntryListener);
+    client.on('mcpTools', mcpToolsListener);
+    client.on('customPrompts', customPromptsListener);
+    client.on('enteredReviewMode', enteredReviewListener);
+    client.on('exitedReviewMode', exitedReviewListener);
 
     const clientWithRoute = client as unknown as { routeEvent: (event: ReturnType<typeof makeEvent>) => void };
 
@@ -302,11 +395,61 @@ describe('CodexClient', () => {
         summary: 'auto',
       }),
     );
+    clientWithRoute.routeEvent(
+      makeEvent('get_history_entry_response', {
+        offset: 1,
+        log_id: 4,
+        entry: { conversation_id: 'conv-123', ts: 123, text: 'hi' },
+      }),
+    );
+    clientWithRoute.routeEvent(
+      makeEvent('mcp_list_tools_response', {
+        tools: {
+          'example/tool': {
+            name: 'tool',
+          },
+        },
+      }),
+    );
+    clientWithRoute.routeEvent(
+      makeEvent('list_custom_prompts_response', {
+        custom_prompts: [{ name: 'default', path: '/tmp/prompt', content: 'prompt' }],
+      }),
+    );
+    clientWithRoute.routeEvent(
+      makeEvent('entered_review_mode', {
+        prompt: 'Check this',
+        user_facing_hint: 'Focus on tests',
+      }),
+    );
+    clientWithRoute.routeEvent(
+      makeEvent('exited_review_mode', {
+        review_output: {
+          findings: [],
+          overall_correctness: 'correct',
+          overall_explanation: 'looks good',
+          overall_confidence_score: 0.9,
+        },
+      }),
+    );
 
     expect(conversationPathListener).toHaveBeenCalledWith(expect.objectContaining({ path: '/tmp/history' }));
     expect(shutdownListener).toHaveBeenCalledWith(expect.objectContaining({ type: 'shutdown_complete' }));
     expect(turnContextListener).toHaveBeenCalledWith(
       expect.objectContaining({ cwd: '/tmp', model: 'gpt-5-codex' }),
+    );
+    expect(historyEntryListener).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'get_history_entry_response', offset: 1, log_id: 4 }),
+    );
+    expect(mcpToolsListener).toHaveBeenCalledWith(expect.objectContaining({ tools: expect.any(Object) }));
+    expect(customPromptsListener).toHaveBeenCalledWith(
+      expect.objectContaining({ custom_prompts: [{ name: 'default', path: '/tmp/prompt', content: 'prompt' }] }),
+    );
+    expect(enteredReviewListener).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'entered_review_mode', prompt: 'Check this' }),
+    );
+    expect(exitedReviewListener).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'exited_review_mode', review_output: expect.any(Object) }),
     );
   });
 

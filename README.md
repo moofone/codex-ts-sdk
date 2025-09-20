@@ -325,12 +325,12 @@ Set the `CODEX_HOME` environment variable (or pass `codexHome`) to the directory
 | `UserTurn` | `CodexClient.sendUserTurn()` → `createUserTurnSubmission()` (`src/client/CodexClient.ts:160`) | `tests/CodexClient.behavior.test.ts`, `tests/integration/CodexClient.integration.test.ts`, `tests/examples/examples.test.ts` | Covered. |
 | `ExecApproval` | `CodexClient.respondToExecApproval()` (`src/client/CodexClient.ts:194`) | `tests/CodexClient.behavior.test.ts`, `tests/integration/CodexClient.integration.test.ts`, `tests/examples/examples.test.ts` | Covered. |
 | `PatchApproval` | `CodexClient.respondToPatchApproval()` (`src/client/CodexClient.ts:205`) | `tests/CodexClient.behavior.test.ts`, `tests/integration/CodexClient.integration.test.ts`, `tests/examples/examples.test.ts` | Covered. |
-| `OverrideTurnContext` | — | — | Currently not exposed via the SDK. |
-| `AddToHistory` | — | — | Currently not exposed via the SDK. |
-| `GetHistoryEntryRequest` | — | — | Currently not exposed via the SDK. |
-| `GetPath` | — | — | Currently not exposed via the SDK. |
-| `ListMcpTools` | — | — | Currently not exposed via the SDK. |
-| `ListCustomPrompts` | — | — | Currently not exposed via the SDK. |
-| `Compact` | — | — | Currently not exposed via the SDK. |
-| `Review` | — | — | Currently not exposed via the SDK. |
-| `Shutdown` | — | — | Currently not exposed via the SDK. |
+| `OverrideTurnContext` | `CodexClient.overrideTurnContext()` → `createOverrideTurnContextSubmission()` (`src/client/CodexClient.ts:216`) | `tests/CodexClient.test.ts` | Covered. |
+| `AddToHistory` | `CodexClient.addToHistory()` → `createAddToHistorySubmission()` (`src/client/CodexClient.ts:279`) | `tests/CodexClient.test.ts` | Covered. |
+| `GetHistoryEntryRequest` | `CodexClient.getHistoryEntry()` → `createGetHistoryEntryRequestSubmission()` (`src/client/CodexClient.ts:296`) | `tests/CodexClient.test.ts` | Covered. |
+| `GetPath` | `CodexClient.getPath()` → `createGetPathSubmission()` (`src/client/CodexClient.ts:320`) | `tests/CodexClient.test.ts` | Covered. |
+| `ListMcpTools` | `CodexClient.listMcpTools()` → `createListMcpToolsSubmission()` (`src/client/CodexClient.ts:304`) | `tests/CodexClient.test.ts` | Covered. |
+| `ListCustomPrompts` | `CodexClient.listCustomPrompts()` → `createListCustomPromptsSubmission()` (`src/client/CodexClient.ts:308`) | `tests/CodexClient.test.ts` | Covered. |
+| `Compact` | `CodexClient.compact()` → `createCompactSubmission()` (`src/client/CodexClient.ts:312`) | `tests/CodexClient.test.ts` | Covered. |
+| `Review` | `CodexClient.review()` → `createReviewSubmission()` (`src/client/CodexClient.ts:316`) | `tests/CodexClient.test.ts` | Covered. |
+| `Shutdown` | `CodexClient.shutdown()` → `createShutdownSubmission()` (`src/client/CodexClient.ts:324`) | `tests/CodexClient.test.ts` | Covered. |
