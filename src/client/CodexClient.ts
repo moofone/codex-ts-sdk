@@ -15,6 +15,7 @@ import type {
 import type { SubmissionEnvelope } from '../internal/submissions';
 import {
   createInterruptSubmission,
+  createExecApprovalSubmission,
   createPatchApprovalSubmission,
   createUserInputSubmission,
   createUserTurnSubmission,
@@ -188,10 +189,9 @@ export class CodexClient extends EventEmitter {
 
   async respondToExecApproval(requestId: string, decision: 'approve' | 'reject'): Promise<void> {
     const session = this.requireSession();
-    const submission = createPatchApprovalSubmission(this.generateRequestId(), {
+    const submission = createExecApprovalSubmission(this.generateRequestId(), {
       id: requestId,
       decision,
-      kind: 'exec',
     });
     await this.submit(session, submission);
   }
@@ -201,7 +201,6 @@ export class CodexClient extends EventEmitter {
     const submission = createPatchApprovalSubmission(this.generateRequestId(), {
       id: requestId,
       decision,
-      kind: 'patch',
     });
     await this.submit(session, submission);
   }
