@@ -117,4 +117,121 @@ describe('CodexClient (integration)', () => {
 
     await client.close();
   });
+
+  it('submits user messages and streams notifications from the harness', async () => {
+    configureMockNative({
+      onSubmit: async (submission, session) => {
+        if (submission.op.type === 'user_input') {
+          session.enqueue(createMockEvent('response_started'));
+          session.enqueue(createMockEvent('response_delta', { delta: 'Ping' }));
+          session.enqueue(createMockEvent('response_completed', { text: 'Ping' }));
+          session.end();
+        }
+      },
+    });
+
+    const client = new CodexClient({
+      codexHome: '/tmp/codex',
+      nativeModulePath: getMockModulePath(),
+    });
+
+    await client.createConversation();
+
+    const eventsPromise = collectEvents(client);
+
+    await client.sendMessage('Trigger user input');
+
+    const events = await eventsPromise;
+    expect(events).toEqual(['response_started', 'response_delta', 'response_completed']);
+
+    const submissions = getRecordedSubmissions();
+    expect(submissions).toHaveLength(1);
+    expect(submissions[0].op.type).toBe('user_input');
+
+    await client.close();
+  });
+
+  it('submits interrupt operations and closes the stream on shutdown', async () => {
+    configureMockNative({
+      onSubmit: async (submission, session) => {
+        if (submission.op.type === 'interrupt') {
+          session.enqueue(createMockEvent('shutdown', { reason: 'client_request' }));
+          session.end();
+        }
+      },
+    });
+
+    const client = new CodexClient({
+      codexHome: '/tmp/codex',
+      nativeModulePath: getMockModulePath(),
+    });
+
+    await client.createConversation();
+
+    const eventsPromise = collectEvents(client);
+
+    await client.interruptConversation();
+
+    const events = await eventsPromise;
+    expect(events).toEqual(['shutdown']);
+
+    const submissions = getRecordedSubmissions();
+    expect(submissions).toHaveLength(1);
+    expect(submissions[0].op.type).toBe('interrupt');
+
+    await client.close();
+  });
+
+  it('submits patch approvals after receiving requests from the runtime', async () => {
+    configureMockNative({
+      onSubmit: async (submission, session) => {
+        switch (submission.op.type) {
+          case 'user_turn':
+            session.enqueue(
+              createMockEvent('apply_patch_approval_request', {
+                id: 'patch-1',
+                patches: [],
+              }),
+            );
+            break;
+          case 'patch_approval':
+            session.enqueue(createMockEvent('response_started'));
+            session.enqueue(createMockEvent('response_completed', { text: 'patched' }));
+            session.end();
+            break;
+          default:
+            break;
+        }
+      },
+    });
+
+    const client = new CodexClient({
+      codexHome: '/tmp/codex',
+      nativeModulePath: getMockModulePath(),
+    });
+
+    await client.createConversation();
+
+    const streamPromise = collectEvents(client);
+    const approvalPromise = new Promise<{ id: string }>((resolve) => {
+      client.once('applyPatchApproval', (msg) => {
+        resolve(msg as { id: string });
+      });
+    });
+
+    await client.sendUserTurn('Request patch approval');
+
+    const approval = await approvalPromise;
+    expect(approval.id).toBe('patch-1');
+
+    await client.respondToPatchApproval(approval.id, 'approve');
+
+    const events = await streamPromise;
+    expect(events).toEqual(['apply_patch_approval_request', 'response_started', 'response_completed']);
+
+    const submissions = getRecordedSubmissions();
+    expect(submissions.map((entry) => entry.op.type)).toEqual(['user_turn', 'patch_approval']);
+
+    await client.close();
+  });
 });
