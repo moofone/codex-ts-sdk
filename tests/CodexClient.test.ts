@@ -42,6 +42,7 @@ vi.mock('../src/internal/nativeModule', async () => {
 
 import { CodexClient } from '../src/client/CodexClient';
 import type { CodexClientConfig, ReviewRequestInput } from '../src/types/options';
+import type { SandboxPolicy } from '../src/bindings/SandboxPolicy';
 
 interface SessionHandle {
   conversationId: string;
@@ -339,6 +340,125 @@ describe('CodexClient', () => {
     );
   });
 
+  describe('overrideTurnContext sandbox policy validation', () => {
+    it('accepts workspace-write sandbox policies with valid configuration', async () => {
+      const client = createClient();
+      await client.createConversation();
+
+      const policy: SandboxPolicy = {
+        mode: 'workspace-write',
+        network_access: true,
+        exclude_tmpdir_env_var: false,
+        exclude_slash_tmp: true,
+        writable_roots: ['/tmp/project'],
+      };
+
+      await client.overrideTurnContext({ sandboxPolicy: policy });
+
+      const payload = JSON.parse(submitMock.mock.calls.at(-1)?.[0] ?? '{}');
+      expect(payload.op).toMatchObject({ sandbox_policy: policy });
+
+      await client.close();
+    });
+
+    it('rejects non-object sandbox policies', async () => {
+      const client = createClient();
+      await client.createConversation();
+
+      await expect(
+        client.overrideTurnContext({ sandboxPolicy: 'invalid' as unknown as SandboxPolicy }),
+      ).rejects.toThrow('overrideTurnContext sandboxPolicy must be a valid SandboxPolicy value');
+
+      await client.close();
+    });
+
+    it('rejects workspace-write sandbox policies with non-boolean network access', async () => {
+      const client = createClient();
+      await client.createConversation();
+
+      const policy = {
+        mode: 'workspace-write',
+        network_access: 'yes',
+        exclude_tmpdir_env_var: false,
+        exclude_slash_tmp: false,
+      } as unknown as SandboxPolicy;
+
+      await expect(client.overrideTurnContext({ sandboxPolicy: policy })).rejects.toThrow(
+        'overrideTurnContext sandboxPolicy must be a valid SandboxPolicy value',
+      );
+
+      await client.close();
+    });
+
+    it('rejects workspace-write sandbox policies with non-boolean exclude_tmpdir_env_var', async () => {
+      const client = createClient();
+      await client.createConversation();
+
+      const policy = {
+        mode: 'workspace-write',
+        network_access: false,
+        exclude_tmpdir_env_var: 'nope',
+        exclude_slash_tmp: false,
+      } as unknown as SandboxPolicy;
+
+      await expect(client.overrideTurnContext({ sandboxPolicy: policy })).rejects.toThrow(
+        'overrideTurnContext sandboxPolicy must be a valid SandboxPolicy value',
+      );
+
+      await client.close();
+    });
+
+    it('rejects workspace-write sandbox policies with non-boolean exclude_slash_tmp', async () => {
+      const client = createClient();
+      await client.createConversation();
+
+      const policy = {
+        mode: 'workspace-write',
+        network_access: false,
+        exclude_tmpdir_env_var: false,
+        exclude_slash_tmp: 'nah',
+      } as unknown as SandboxPolicy;
+
+      await expect(client.overrideTurnContext({ sandboxPolicy: policy })).rejects.toThrow(
+        'overrideTurnContext sandboxPolicy must be a valid SandboxPolicy value',
+      );
+
+      await client.close();
+    });
+
+    it('rejects workspace-write sandbox policies with invalid writable roots entries', async () => {
+      const client = createClient();
+      await client.createConversation();
+
+      const policy = {
+        mode: 'workspace-write',
+        network_access: false,
+        exclude_tmpdir_env_var: false,
+        exclude_slash_tmp: false,
+        writable_roots: ['/tmp/project', 42],
+      } as unknown as SandboxPolicy;
+
+      await expect(client.overrideTurnContext({ sandboxPolicy: policy })).rejects.toThrow(
+        'overrideTurnContext sandboxPolicy must be a valid SandboxPolicy value',
+      );
+
+      await client.close();
+    });
+
+    it('rejects sandbox policies with unknown modes', async () => {
+      const client = createClient();
+      await client.createConversation();
+
+      const policy = { mode: 'unsupported-mode' } as unknown as SandboxPolicy;
+
+      await expect(client.overrideTurnContext({ sandboxPolicy: policy })).rejects.toThrow(
+        'overrideTurnContext sandboxPolicy must be a valid SandboxPolicy value',
+      );
+
+      await client.close();
+    });
+  });
+
   it('requests conversation path and shutdown submissions', async () => {
     const client = createClient();
     await client.createConversation();
@@ -517,6 +637,29 @@ describe('CodexClient', () => {
     expect(exitedReviewListener).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'exited_review_mode', review_output: expect.any(Object) }),
     );
+  });
+
+  it('emits errors and stops the event loop when nextEvent throws', async () => {
+    const error = new Error('event loop failure');
+    const onErrorHook = vi.fn().mockResolvedValue(undefined);
+    const client = createClient({ plugins: [{ name: 'onError', onError: onErrorHook }] });
+    const closed = new Promise<void>((resolve) => client.once('eventStreamClosed', () => resolve()));
+    const errorListener = vi.fn();
+    client.on('error', errorListener);
+
+    nextEventMock.mockRejectedValueOnce(error);
+
+    await client.createConversation();
+
+    await closed;
+
+    expect(errorListener).toHaveBeenCalledTimes(1);
+    expect(errorListener).toHaveBeenCalledWith(error);
+    expect(onErrorHook).toHaveBeenCalledTimes(1);
+    expect(onErrorHook).toHaveBeenCalledWith(error);
+    expect(nextEventMock).toHaveBeenCalledTimes(1);
+
+    await client.close();
   });
 
   it('closes sessions gracefully', async () => {
