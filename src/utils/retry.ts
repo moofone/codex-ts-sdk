@@ -47,7 +47,10 @@ export async function withRetry<T>(
         error: error instanceof Error ? error.message : String(error),
       });
       await delay(delayMs);
-      delayMs = Math.min(delayMs * factor, maxDelay);
+      delayMs *= factor;
+      if (delayMs > maxDelay) {
+        delayMs = maxDelay;
+      }
       attempt += 1;
     }
   }

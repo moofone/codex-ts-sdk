@@ -14,6 +14,11 @@ const MODEL_REGISTRY: ModelMetadata[] = [
     defaultEffort: 'medium',
     aliases: ['codex', 'codex-native', 'gpt-5'],
   },
+  {
+    canonical: 'gpt-5-codex-latest',
+    supportedEfforts: ['minimal', 'low', 'medium', 'high'],
+    defaultEffort: 'high',
+  },
 ];
 
 const MODEL_INDEX = new Map<string, ModelMetadata>();
