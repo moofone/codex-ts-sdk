@@ -10,7 +10,23 @@ export type {
 } from './types/options';
 
 export type { CodexEvent } from './types/events';
-export type { SubmissionEnvelope } from './internal/submissions';
+export {
+  createUserInputSubmission,
+  createUserTurnSubmission,
+  createInterruptSubmission,
+  createPatchApprovalSubmission,
+} from './internal/submissions';
+export type {
+  SubmissionEnvelope,
+  SubmissionOp,
+  UserInputOp,
+  UserTurnOp,
+  InterruptOp,
+  ExecApprovalOp,
+  PatchApprovalOp,
+  CreateUserTurnSubmissionOptions,
+  ApprovalSubmissionOptions,
+} from './internal/submissions';
 export type {
   AskForApproval,
   SandboxPolicy,
