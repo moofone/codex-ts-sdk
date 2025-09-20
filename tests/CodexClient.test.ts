@@ -228,6 +228,34 @@ describe('CodexClient', () => {
     const available = await client.testModelAvailability('codex');
     expect(available).toBe(true);
   });
+
+  it('responds to patch approval requests with the correct payload', async () => {
+    const client = createClient();
+    nextEventMock.mockResolvedValueOnce(null);
+
+    await client.createConversation();
+    await client.respondToPatchApproval('patch-42', 'approve');
+
+    expect(submitMock).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(submitMock.mock.calls.at(-1)?.[0] ?? '{}');
+    expect(payload).toMatchObject({
+      op: {
+        type: 'patch_approval',
+        id: 'patch-42',
+        decision: 'approved',
+      },
+    });
+
+    await client.close();
+  });
+
+  it('validates active sessions before responding to patch approvals', async () => {
+    const client = createClient();
+
+    await expect(client.respondToPatchApproval('patch-99', 'reject')).rejects.toThrow(
+      'No active Codex session',
+    );
+  });
 });
 
 function makeEvent(type: string, extra: Record<string, unknown> = {}) {
