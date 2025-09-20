@@ -68,4 +68,17 @@ describe('CodexClientPool', () => {
 
     expect(instances.every((c) => c.close.mock.calls.length >= 1)).toBe(true);
   });
+
+  it('rejects queued acquires when closing', async () => {
+    const pool = new CodexClientPool({ codexHome: '/codex' }, 1);
+    const first = await pool.acquire();
+    const queued = pool.acquire();
+
+    const closePromise = pool.close();
+
+    await expect(queued).rejects.toThrowError('CodexClientPool is closing');
+    await closePromise;
+
+    expect(first.close).toHaveBeenCalled();
+  });
 });
