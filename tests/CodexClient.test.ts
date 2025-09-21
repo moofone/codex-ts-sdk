@@ -451,6 +451,22 @@ describe('CodexClient', () => {
     });
   });
 
+  it('accepts snake_case review hints without renormalizing', async () => {
+    const client = createClient();
+    await client.createConversation();
+    nextEventMock.mockResolvedValueOnce(null);
+
+    await client.review({ prompt: 'Check this', user_facing_hint: 'Focus on tests' } as any);
+
+    const payload = JSON.parse(submitMock.mock.calls[0][0]);
+    expect(payload.op).toEqual({
+      type: 'review',
+      review_request: { prompt: 'Check this', user_facing_hint: 'Focus on tests' },
+    });
+
+    await client.close();
+  });
+
   it('validates review request input', async () => {
     const client = createClient();
     await client.createConversation();
@@ -463,6 +479,82 @@ describe('CodexClient', () => {
     );
 
     await client.close().catch(() => undefined);
+  });
+
+  it('rejects snake_case review hints when blank', async () => {
+    const client = createClient();
+    await client.createConversation();
+
+    await expect(
+      client.review({ prompt: 'Check this', user_facing_hint: '   ' } as any),
+    ).rejects.toThrow(/non-empty string/);
+
+    await client.close().catch(() => undefined);
+  });
+
+  describe('type guard helpers', () => {
+    it('returns false when event types do not match the guard', () => {
+      const client = createClient();
+      const guards = client as any;
+
+      expect(guards.isGetHistoryEntryResponseEventMessage({ type: 'notification' })).toBe(false);
+      expect(guards.isMcpListToolsResponseEventMessage({ type: 'notification' })).toBe(false);
+      expect(guards.isListCustomPromptsResponseEventMessage({ type: 'notification' })).toBe(false);
+      expect(guards.isEnteredReviewModeEventMessage({ type: 'notification' })).toBe(false);
+    });
+
+    it('validates payload shapes before emitting guard-specific events', () => {
+      const client = createClient();
+      const guards = client as any;
+
+      expect(
+        guards.isGetHistoryEntryResponseEventMessage({
+          type: 'get_history_entry_response',
+          offset: '1',
+          log_id: 2,
+        }),
+      ).toBe(false);
+
+      expect(
+        guards.isMcpListToolsResponseEventMessage({
+          type: 'mcp_list_tools_response',
+          tools: null,
+        }),
+      ).toBe(false);
+
+      expect(
+        guards.isListCustomPromptsResponseEventMessage({
+          type: 'list_custom_prompts_response',
+          custom_prompts: 'not-an-array',
+        }),
+      ).toBe(false);
+      expect(
+        guards.isListCustomPromptsResponseEventMessage({
+          type: 'list_custom_prompts_response',
+          custom_prompts: [null],
+        }),
+      ).toBe(false);
+      expect(
+        guards.isListCustomPromptsResponseEventMessage({
+          type: 'list_custom_prompts_response',
+          custom_prompts: [
+            { name: 'default', path: '/tmp/prompt', content: 42 } as unknown as {
+              name: string;
+              path: string;
+              content: string;
+            },
+          ],
+        }),
+      ).toBe(false);
+
+      expect(
+        guards.isEnteredReviewModeEventMessage({
+          type: 'entered_review_mode',
+          prompt: 'Check this',
+          user_facing_hint: 12,
+        }),
+      ).toBe(false);
+    });
   });
 
   describe('overrideTurnContext sandbox policy validation', () => {
@@ -762,6 +854,39 @@ describe('CodexClient', () => {
     expect(exitedReviewListener).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'exited_review_mode', review_output: expect.any(Object) }),
     );
+  });
+
+  it('prevents guard-protected events from emitting when payloads are invalid', () => {
+    const client = createClient();
+    const historyEntryListener = vi.fn();
+    const mcpToolsListener = vi.fn();
+    const customPromptsListener = vi.fn();
+    const enteredReviewListener = vi.fn();
+
+    client.on('historyEntry', historyEntryListener);
+    client.on('mcpTools', mcpToolsListener);
+    client.on('customPrompts', customPromptsListener);
+    client.on('enteredReviewMode', enteredReviewListener);
+
+    const clientWithRoute = client as unknown as { routeEvent: (event: ReturnType<typeof makeEvent>) => void };
+
+    clientWithRoute.routeEvent(
+      makeEvent('get_history_entry_response', { offset: '0', log_id: 1 }),
+    );
+    clientWithRoute.routeEvent(
+      makeEvent('mcp_list_tools_response', { tools: null }),
+    );
+    clientWithRoute.routeEvent(
+      makeEvent('list_custom_prompts_response', { custom_prompts: ['invalid'] }),
+    );
+    clientWithRoute.routeEvent(
+      makeEvent('entered_review_mode', { prompt: 'Check this', user_facing_hint: 0 }),
+    );
+
+    expect(historyEntryListener).not.toHaveBeenCalled();
+    expect(mcpToolsListener).not.toHaveBeenCalled();
+    expect(customPromptsListener).not.toHaveBeenCalled();
+    expect(enteredReviewListener).not.toHaveBeenCalled();
   });
 
   it('emits errors and stops the event loop when nextEvent throws', async () => {

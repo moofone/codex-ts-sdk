@@ -10,7 +10,6 @@ export function resolveModuleUrl(
   dir?: string,
 ): string {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-implied-eval
     const fn = fnCtor(`
       try { return import.meta.url; }
       catch (err) { return undefined; }
