@@ -1,0 +1,28 @@
+# Exclude Rust build artifacts
+native/**/target/
+native/**/*.rs
+native/**/Cargo.toml
+native/**/Cargo.lock
+native/**/build.rs
+native/**/src/
+
+# Keep only the compiled binary and index.js
+!native/codex-napi/index.node
+!native/codex-napi/index.js
+!native/README.md
+
+# Development files
+.vitest/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.DS_Store
+.idea/
+.vscode/
+tmp/
+*.log
+tsconfig*.json
+eslint.config.js
+vitest.config.ts

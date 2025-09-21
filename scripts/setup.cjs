@@ -40,7 +40,7 @@ if (existsSync(codexHome)) {
     console.log('3. Build: cd $CODEX_RUST_ROOT/codex-rs && cargo build --release');
     console.log('4. Set CODEX_HOME: export CODEX_HOME=$CODEX_RUST_ROOT/codex-rs/target/release');
   }
-  console.log(`   OR copy binaries to: ${join(process.env.HOME || process.env.USERPROFILE, '.codex')}\n`);
+  console.log('   If you use codex-cli, it manages runtime assets under ~/.codex automatically.\n');
 }
 
 // Step 2: Install dependencies
