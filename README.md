@@ -90,7 +90,10 @@ This SDK requires two components:
 # Set these to your repository paths:
 export CODEX_TS_SDK_ROOT=/path/to/codex-ts-sdk     # This TypeScript SDK repo
 export CODEX_RUST_ROOT=/path/to/codex              # The cloned Codex Rust repo
-export CODEX_HOME=$CODEX_RUST_ROOT/codex-rs/target/release  # Or ~/.codex if you copied there
+export CODEX_HOME=$CODEX_RUST_ROOT/codex-rs/target/release  # Path with Codex runtime assets
+
+# If you install the runtime via codex-cli, it manages assets in ~/.codex.
+# Point CODEX_HOME at that directory instead of copying files manually.
 ```
 
 ### Prerequisites
@@ -126,7 +129,7 @@ If you don't have Codex runtime assets yet, the script will provide instructions
 
 #### 1. Check for existing Codex runtime assets
 
-If you already have Codex runtime assets in `~/.codex` (the default location), skip to step 3. Otherwise, continue to step 2.
+If codex-cli already installed Codex runtime assets in `~/.codex`, skip to step 3. Otherwise, continue to step 2 to build them locally.
 
 #### 2. Build the Codex runtime assets (if needed)
 
@@ -138,12 +141,10 @@ cd $CODEX_RUST_ROOT/codex-rs
 # Build the runtime (all platforms)
 cargo build --release
 
-# Option 1: Use directly from build location
+# Option 1: Use directly from the build output
 export CODEX_HOME=$CODEX_RUST_ROOT/codex-rs/target/release
 
-# Option 2: Copy to ~/.codex
-mkdir -p ~/.codex
-cp -r target/release/* ~/.codex/
+# Option 2: Use the runtime managed by codex-cli (no manual copies)
 export CODEX_HOME=~/.codex
 ```
 
@@ -211,7 +212,7 @@ ls -la native/codex-napi/index.node
 
 ### Configure the client
 
-- Set `CODEX_HOME` environment variable to your runtime assets location (defaults to `~/.codex`)
+- Set `CODEX_HOME` environment variable to your runtime assets location (for local builds this is usually `$CODEX_RUST_ROOT/codex-rs/target/release`; codex-cli installs assets to `~/.codex`)
 - Review sandbox and approval policies before connecting; the defaults allow workspace writes only and rely on Codex to request approvals
 - If you built a custom N-API binary, provide its location via `nativeModulePath` when creating the client
 
