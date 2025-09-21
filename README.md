@@ -35,24 +35,37 @@ npm install ../codex-ts-sdk
 ## Quickstart
 
 ```ts
-import { CodexClient, CodexClientBuilder } from 'codex-ts-sdk';
+import { CodexClient } from 'codex-ts-sdk';
 
-const client = new CodexClientBuilder()
-  .withCodexHome(process.env.CODEX_HOME!)
-  .withSandboxPolicy({
-    mode: 'workspace-write',
-    network_access: false,
-  })
-  .withApprovalPolicy('on-request')
-  .build();
+if (!process.env.CODEX_HOME) {
+  throw new Error('Set CODEX_HOME to your Codex runtime (e.g. ~/.codex) before running this script.');
+}
 
-await client.connect();
+const client = new CodexClient({
+  codexHome: process.env.CODEX_HOME,
+});
+
 await client.createConversation();
-await client.sendUserTurn('List the steps for safe git rebases.');
+await client.sendUserTurn('What is 1 + 1?', {
+  model: 'gpt-5-codex',
+  effort: 'low',
+});
 
 for await (const event of client.events()) {
-  console.log(event.msg);
+  if (event.msg.type === 'agent_message') {
+    const message = event.msg.message;
+    if (typeof message === 'string') {
+      console.log(message);
+    } else if (message && typeof message.text === 'string') {
+      console.log(message.text);
+    } else {
+      console.log(JSON.stringify(message, null, 2));
+    }
+    break;
+  }
 }
+
+await client.close();
 ```
 
 Ensure `CODEX_HOME` is exported to the Codex runtime directory before running
