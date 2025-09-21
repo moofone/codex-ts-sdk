@@ -42,8 +42,7 @@ if (existsSync(codexHome)) {
     console.log('3. Build: cd $CODEX_RUST_ROOT/codex-rs && cargo build --release');
     console.log('4. Set CODEX_HOME: export CODEX_HOME=$CODEX_RUST_ROOT/codex-rs/target/release');
   }
-  console.log('   codex-cli installs to ~/.codex automatically.\n   After rebuilding, run npm run test and verify getCodexCliVersion() (see tests/version.test.ts) reports the expected runtime version.
-');
+  console.log('   codex-cli installs to ~/.codex automatically.\n   After rebuilding, run npm run test and verify getCodexCliVersion() (see tests/version.test.ts) reports the expected runtime version.\n');
 }
 
 // Step 2: Install dependencies

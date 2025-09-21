@@ -765,8 +765,8 @@ export class CodexClient extends EventEmitter {
   on(event: 'event', listener: CodexClientEventListener<CodexEvent>): this;
   on(event: 'error', listener: (error: unknown) => void): this;
   on(event: typeof EVENT_STREAM_CLOSED, listener: () => void): this;
-  on(event: string, listener: (...args: unknown[]) => void): this {
-    return super.on(event, listener as (...args: unknown[]) => void);
+  on(event: string, listener: (...args: any[]) => void): this {
+    return super.on(event, listener as (...args: any[]) => void);
   }
 
   once(
@@ -814,8 +814,8 @@ export class CodexClient extends EventEmitter {
   once(event: 'event', listener: CodexClientEventListener<CodexEvent>): this;
   once(event: 'error', listener: (error: unknown) => void): this;
   once(event: typeof EVENT_STREAM_CLOSED, listener: () => void): this;
-  once(event: string, listener: (...args: unknown[]) => void): this {
-    return super.once(event, listener as (...args: unknown[]) => void);
+  once(event: string, listener: (...args: any[]) => void): this {
+    return super.once(event, listener as (...args: any[]) => void);
   }
 
   off(
@@ -860,8 +860,8 @@ export class CodexClient extends EventEmitter {
   off(event: 'event', listener: CodexClientEventListener<CodexEvent>): this;
   off(event: 'error', listener: (error: unknown) => void): this;
   off(event: typeof EVENT_STREAM_CLOSED, listener: () => void): this;
-  off(event: string, listener: (...args: unknown[]) => void): this {
-    return super.off(event, listener as (...args: unknown[]) => void);
+  off(event: string, listener: (...args: any[]) => void): this {
+    return super.off(event, listener as (...args: any[]) => void);
   }
 
   private requireSession(): CodexSessionHandle {

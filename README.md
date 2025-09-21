@@ -256,8 +256,7 @@ $env:CARGO_NET_GIT_FETCH_WITH_CLI = "true"
 npm run build:native
 
 # Option 2: Build manually if npm script fails
-cd native\codex-napi
-npx napi build --platform --release --target x86_64-pc-windows-msvc
+npx napi build --platform --manifest-path native/codex-napi/Cargo.toml --release --target x86_64-pc-windows-msvc
 
 # Verify: Should create native\codex-napi\index.node
 dir native\codex-napi\index.node
@@ -273,7 +272,7 @@ ls -la native/codex-napi/index.node
 ```
 
 **Common Issues:**
-- **"No crate found"**: You're not in the SDK root directory. The `native/codex-napi/` folder must exist.
+- **"No crate found"**: Run from the repo root or pass `--manifest-path native/codex-napi/Cargo.toml`.
 - **Windows build fails**: Must use "Developer PowerShell for VS" or "x64 Native Tools Command Prompt for VS"
 - **"native/codex-napi not found"**: The repository is incomplete. Re-clone or ensure `native/` folder exists.
 - **Git fetch errors**: On Windows, ensure `CARGO_NET_GIT_FETCH_WITH_CLI=true` is set.
@@ -343,7 +342,7 @@ The TypeScript facade loads a Rust shared library owned by the `codex-napi` crat
 
 ### Building with the pinned codex-rs revision
 
-`npm run build:native` runs `npx napi build --platform` under the hood. The command fetches the git revision declared in `native/codex-napi/Cargo.toml`, compiles it in release mode, and emits `native/codex-napi/index.node`. Use `npm run package` to copy that artefact into `native/codex-napi/prebuilt/<platform>-<arch>/` so it can be published to npm.
+`npm run build:native` runs `npx napi build --platform --manifest-path native/codex-napi/Cargo.toml` under the hood. The command fetches the git revision declared in `native/codex-napi/Cargo.toml`, compiles it in release mode, and emits `native/codex-napi/index.node`. Use `npm run package` to copy that artefact into `native/codex-napi/prebuilt/<platform>-<arch>/` so it can be published to npm.
 
 ### Building against a local codex-rs checkout
 
