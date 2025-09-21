@@ -84,8 +84,31 @@ function resolveProjectRoot(override?: string): string {
   if (override) {
     return override;
   }
-  const currentDir = path.dirname(fileURLToPath(moduleUrl));
-  return path.resolve(currentDir, '..', '..');
+
+  let currentDir = path.dirname(fileURLToPath(moduleUrl));
+  const visited = new Set<string>();
+
+  while (!visited.has(currentDir)) {
+    visited.add(currentDir);
+
+    const packageJsonPath = path.join(currentDir, 'package.json');
+    if (existsSync(packageJsonPath)) {
+      const nativeDir = path.join(currentDir, 'native', 'codex-napi');
+      if (existsSync(nativeDir)) {
+        return currentDir;
+      }
+    }
+
+    const parent = path.dirname(currentDir);
+    if (parent === currentDir) {
+      break;
+    }
+
+    currentDir = parent;
+  }
+
+  // Fallback to the previous behaviour (two levels up) if we couldn't locate package.json.
+  return path.resolve(path.dirname(fileURLToPath(moduleUrl)), '..', '..');
 }
 
 function candidatePaths(projectRoot: string): string[] {

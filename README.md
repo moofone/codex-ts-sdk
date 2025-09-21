@@ -287,10 +287,24 @@ ls -la native/codex-napi/index.node
 
 ## Examples
 
-- `examples/basic-chat.ts` – Minimal conversation loop streaming the first response.
-- `examples/approval-demo.ts` – Auto-approve exec and patch requests via event listeners.
-- `examples/streaming.ts` – Print streaming deltas in real time.
-- `examples/error-handling.ts` – Demonstrates handling the structured `CodexError` hierarchy.
+The scripts import the local CommonJS build from `dist/cjs`; run `npm run build` (or `npm run setup`) first so the compiled SDK is available.
+
+- `examples/error-handling.js` – Demonstrates handling the structured `CodexError` hierarchy.
+- `examples/live-smoke.js` – One-line 1 + 1 smoke check (logs reasoning and reply).
+
+Environment variables used by the examples:
+
+- `CODEX_HOME` (required) – path to your Codex runtime (e.g. `~/.codex` after `codex auth login chatgpt`)
+- `CODEX_NATIVE_MODULE` (optional) – absolute path to a specific `index.node`. Each script sets this automatically to `native/codex-napi/index.node` when unset.
+- `CODEX_LOG_LEVEL` (optional) – set to `debug` if you want verbose runtime logs while the example runs.
+
+Run the examples after building the SDK and native binding:
+
+```bash
+npm run setup                 # or: npm run build && npm run build:native
+export CODEX_HOME="$HOME/.codex"   # ensure `codex auth login chatgpt` has been run
+node examples/live-smoke.js    # or any other script under examples/
+```
 
 ## Configuration
 
@@ -326,6 +340,7 @@ runtime.
 
 - `npm run test` executes the Vitest suite, including the mocked native integration harness.
 - `npm run coverage` enforces the 100% global coverage thresholds configured in `vitest.config.ts`.
+- `node examples/live-smoke.js` performs a real Codex round-trip (requires `codex auth login` and `CODEX_HOME`).
 
 ## Scripts
 
@@ -382,8 +397,8 @@ Set the `CODEX_HOME` environment variable (or pass `codexHome`) to the directory
 | Rust export | TypeScript usage | Tests hitting it | Notes |
 | --- | --- | --- | --- |
 | `NativeCodex::new` | `CodexClient.connect()` creates the binding (`src/client/CodexClient.ts:83`) | `tests/CodexClient.behavior.test.ts`, `tests/integration/CodexClient.integration.test.ts` | Fully wrapped; handles `~` expansion for `codexHome`. |
-| `NativeCodex::create_conversation` | `CodexClient.createConversation()` (`src/client/CodexClient.ts:117`) | `tests/CodexClient.behavior.test.ts`, `tests/integration/CodexClient.integration.test.ts`, `tests/examples/examples.test.ts` | Streams the initial `session_configured` event emitted by Rust. |
-| `CodexSession::next_event / submit / close` | Event loop + submission helpers in `CodexClient` (`src/client/CodexClient.ts:146-213`) | `tests/CodexClient.behavior.test.ts`, `tests/integration/CodexClient.integration.test.ts`, `tests/examples/examples.test.ts` | Core flow covered, including interrupts, approvals, and iterator cleanup behaviours. |
+| `NativeCodex::create_conversation` | `CodexClient.createConversation()` (`src/client/CodexClient.ts:117`) | `tests/CodexClient.behavior.test.ts`, `tests/integration/CodexClient.integration.test.ts` | Streams the initial `session_configured` event emitted by Rust. |
+| `CodexSession::next_event / submit / close` | Event loop + submission helpers in `CodexClient` (`src/client/CodexClient.ts:146-213`) | `tests/CodexClient.behavior.test.ts`, `tests/integration/CodexClient.integration.test.ts` | Core flow covered, including interrupts, approvals, and iterator cleanup behaviours. |
 | `version()` | Not exposed in the SDK | — | Available in the binding; surface later if we need runtime version info. |
 
 ### Protocol Operations
@@ -391,10 +406,10 @@ Set the `CODEX_HOME` environment variable (or pass `codexHome`) to the directory
 | Rust `Op` variant (`codex-rs/protocol/src/protocol.rs:53-175`) | Client support | Tests | Status |
 | --- | --- | --- | --- |
 | `Interrupt` | `CodexClient.interruptConversation()` → `createInterruptSubmission()` (`src/client/CodexClient.ts:187`) | `tests/CodexClient.behavior.test.ts` | Covered. |
-| `UserInput` | `CodexClient.sendMessage()` → `createUserInputSubmission()` (`src/client/CodexClient.ts:142`) | `tests/CodexClient.behavior.test.ts`, `tests/examples/examples.test.ts` | Covered. |
-| `UserTurn` | `CodexClient.sendUserTurn()` → `createUserTurnSubmission()` (`src/client/CodexClient.ts:160`) | `tests/CodexClient.behavior.test.ts`, `tests/integration/CodexClient.integration.test.ts`, `tests/examples/examples.test.ts` | Covered. |
-| `ExecApproval` | `CodexClient.respondToExecApproval()` (`src/client/CodexClient.ts:194`) | `tests/CodexClient.behavior.test.ts`, `tests/integration/CodexClient.integration.test.ts`, `tests/examples/examples.test.ts` | Covered. |
-| `PatchApproval` | `CodexClient.respondToPatchApproval()` (`src/client/CodexClient.ts:205`) | `tests/CodexClient.behavior.test.ts`, `tests/integration/CodexClient.integration.test.ts`, `tests/examples/examples.test.ts` | Covered. |
+| `UserInput` | `CodexClient.sendMessage()` → `createUserInputSubmission()` (`src/client/CodexClient.ts:142`) | `tests/CodexClient.behavior.test.ts` | Covered. |
+| `UserTurn` | `CodexClient.sendUserTurn()` → `createUserTurnSubmission()` (`src/client/CodexClient.ts:160`) | `tests/CodexClient.behavior.test.ts`, `tests/integration/CodexClient.integration.test.ts` | Covered. |
+| `ExecApproval` | `CodexClient.respondToExecApproval()` (`src/client/CodexClient.ts:194`) | `tests/CodexClient.behavior.test.ts`, `tests/integration/CodexClient.integration.test.ts` | Covered. |
+| `PatchApproval` | `CodexClient.respondToPatchApproval()` (`src/client/CodexClient.ts:205`) | `tests/CodexClient.behavior.test.ts`, `tests/integration/CodexClient.integration.test.ts` | Covered. |
 | `OverrideTurnContext` | `CodexClient.overrideTurnContext()` → `createOverrideTurnContextSubmission()` (`src/client/CodexClient.ts:216`) | `tests/CodexClient.test.ts` | Covered. |
 | `AddToHistory` | `CodexClient.addToHistory()` → `createAddToHistorySubmission()` (`src/client/CodexClient.ts:279`) | `tests/CodexClient.test.ts` | Covered. |
 | `GetHistoryEntryRequest` | `CodexClient.getHistoryEntry()` → `createGetHistoryEntryRequestSubmission()` (`src/client/CodexClient.ts:296`) | `tests/CodexClient.test.ts` | Covered. |

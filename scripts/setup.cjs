@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const { execSync } = require('child_process');
-const { existsSync } = require('fs');
+const { existsSync, readdirSync, copyFileSync, rmSync } = require('fs');
 const { join } = require('path');
 const os = require('os');
 
@@ -67,7 +67,49 @@ try {
 
 // Step 4: Build native binding
 console.log('Step 4: Building native N-API binding...');
-const indexNodePath = join(projectRoot, 'native', 'codex-napi', 'index.node');
+const nativeBindingDir = join(projectRoot, 'native', 'codex-napi');
+const indexNodePath = join(nativeBindingDir, 'index.node');
+
+function ensureIndexNodeAlias() {
+  if (existsSync(indexNodePath)) {
+    return true;
+  }
+
+  let candidates;
+  try {
+    candidates = readdirSync(nativeBindingDir).filter(
+      (file) => file !== 'index.node' && file.startsWith('index.') && file.endsWith('.node'),
+    );
+  } catch (error) {
+    return false;
+  }
+
+  if (candidates.length === 0) {
+    return false;
+  }
+
+  const preferred =
+    candidates.find(
+      (file) => file.includes(process.platform) && file.includes(process.arch),
+    ) ?? candidates[0];
+
+  try {
+    rmSync(indexNodePath, { force: true, recursive: false });
+  } catch {}
+
+  try {
+    copyFileSync(join(nativeBindingDir, preferred), indexNodePath);
+    console.log(`   Copied ${preferred} -> index.node`);
+    return true;
+  } catch (copyError) {
+    console.log(
+      `   Failed to create index.node alias from ${preferred}: ${
+        copyError instanceof Error ? copyError.message : String(copyError)
+      }`,
+    );
+    return false;
+  }
+}
 
 if (existsSync(indexNodePath)) {
   console.log(`ℹ️  Found existing index.node at: ${indexNodePath}`);
@@ -81,6 +123,7 @@ try {
     env.CARGO_NET_GIT_FETCH_WITH_CLI = 'true';
   }
   execSync('npm run build:native', { cwd: projectRoot, stdio: 'inherit', env });
+  ensureIndexNodeAlias();
   console.log('✅ Native binding built\n');
 } catch (error) {
   console.error('❌ Failed to build native binding');
@@ -93,7 +136,7 @@ try {
 
 // Step 5: Verify setup
 console.log('Step 5: Verifying setup...');
-if (existsSync(indexNodePath)) {
+if (ensureIndexNodeAlias()) {
   console.log(`✅ Native binding found at: ${indexNodePath}`);
 } else {
   console.log('❌ Native binding not found after build');
