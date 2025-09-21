@@ -76,6 +76,7 @@ beforeEach(() => {
       }
     },
     version: () => 'test-version',
+    cliVersion: () => 'test-version',
   }));
 });
 
@@ -176,6 +177,7 @@ describe('CodexClient advanced behaviour', () => {
         }
       },
       version: () => 'test-version',
+      cliVersion: () => 'test-version',
     }));
 
     const client = createClient();

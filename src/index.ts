@@ -52,3 +52,4 @@ export type { CodexPlugin, CodexPluginInitializeContext } from './plugins/types'
 export { resolveModelVariant, getSupportedEfforts } from './utils/models';
 export type { ResolvedModelVariant } from './utils/models';
 export type { RetryPolicy } from './utils/retry';
+export { getCodexCliVersion } from './version';

@@ -38,7 +38,7 @@ npm install ../codex-ts-sdk
 import { CodexClient, CodexClientBuilder } from 'codex-ts-sdk';
 
 const client = new CodexClientBuilder()
-  .withCodexHome(process.env.CODEX_HOME ?? '~/.codex')
+  .withCodexHome(process.env.CODEX_HOME!)
   .withSandboxPolicy({
     mode: 'workspace-write',
     network_access: false,
@@ -54,6 +54,10 @@ for await (const event of client.events()) {
   console.log(event.msg);
 }
 ```
+
+Ensure `CODEX_HOME` is exported to the Codex runtime directory before running
+the snippet (`~/.codex` for codex-cli installs, or `$CODEX_RUST_ROOT/codex-rs/target/release`
+when you build locally).
 
 By default the client uses a `workspace-write` sandbox (no network access) and
 relies on Codex to request approval (`on-request`). Override those policies if
@@ -86,15 +90,53 @@ This SDK requires two components:
 
 ### Environment Variables
 
-```bash
-# Set these to your repository paths:
-export CODEX_TS_SDK_ROOT=/path/to/codex-ts-sdk     # This TypeScript SDK repo
-export CODEX_RUST_ROOT=/path/to/codex              # The cloned Codex Rust repo
-export CODEX_HOME=$CODEX_RUST_ROOT/codex-rs/target/release  # Path with Codex runtime assets
+Pick exactly one installation option:
 
-# If you install the runtime via codex-cli, it manages assets in ~/.codex.
-# Point CODEX_HOME at that directory instead of copying files manually.
+#### Installation Option 1 — Fresh install (codex-cli or prebuilt bundle)
+
+1. Install and run `codex --version` once so the CLI unpacks the runtime into `~/.codex`.
+2. Export (macOS/Linux):
+
+```bash
+export CODEX_TS_SDK_ROOT=/path/to/codex-ts-sdk
+export CODEX_HOME=~/.codex
 ```
+
+   Windows (PowerShell):
+   ```powershell
+   $env:CODEX_TS_SDK_ROOT = 'C:\path\to\codex-ts-sdk'
+   $env:CODEX_HOME      = "$env:USERPROFILE\\.codex"
+   ```
+
+#### Installation Option 2 — Update `codex-rs` (local build)
+
+⚠️ Updating `codex-rs` may require matching TypeScript SDK changes. After rebuilding, run the SDK tests and verify `getCodexCliVersion()` reports the expected version (see `tests/version.test.ts`).
+
+1. Record your checkouts:
+
+```bash
+export CODEX_TS_SDK_ROOT=/path/to/codex-ts-sdk
+export CODEX_RUST_ROOT=/path/to/codex
+```
+
+2. Build the runtime and point `CODEX_HOME` at Cargo's output:
+
+   macOS / Linux:
+   ```bash
+   cd $CODEX_RUST_ROOT/codex-rs
+   cargo build --release
+   export CODEX_HOME=$CODEX_RUST_ROOT/codex-rs/target/release
+   ```
+
+   Windows (PowerShell):
+   ```powershell
+   Set-Location "$env:CODEX_RUST_ROOT\\codex-rs"
+   cargo build --release
+   $env:CODEX_HOME = "$env:CODEX_RUST_ROOT\\codex-rs\\target\\release"
+   ```
+
+3. Run `codex --version` to confirm the rebuilt runtime reports the expected version.
+4. From the SDK, call `getCodexCliVersion()` (see `tests/version.test.ts`) to ensure the TS binding matches the rebuilt runtime. The helper throws if the native module is missing `cliVersion()`, signalling you need to rebuild the binding.
 
 ### Prerequisites
 
@@ -105,7 +147,11 @@ export CODEX_HOME=$CODEX_RUST_ROOT/codex-rs/target/release  # Path with Codex ru
   - **Linux** – `build-essential`, `python3`, `pkg-config`, and OpenSSL headers
   - **Windows** – "Desktop development with C++" workload for Visual Studio Build Tools
 
-### Quick Setup
+For option B (custom `codex-rs` builds) you also need:
+- Git to clone https://github.com/openai/codex
+- zstd (to unpack CI artifacts if you grab prebuilt bundles from GitHub)
+
+## Quick Setup
 
 ```bash
 # After setting environment variables, in this SDK repository:
@@ -114,41 +160,65 @@ npm run setup
 ```
 
 This setup script will:
-1. Check for Codex runtime assets at `$CODEX_HOME`
+1. Check for a Codex runtime directory at `$CODEX_HOME`
 2. Install dependencies
 3. Build the TypeScript SDK
 4. Build the native N-API binding for your platform
 5. Verify the setup
 
-If you don't have Codex runtime assets yet, the script will provide instructions for building them.
+If `$CODEX_HOME` is empty, the script explains how to populate it:
+- Run `codex --version` to let codex-cli unpack `~/.codex` (Installation Option 1).
+- Or follow Installation Option 2 to rebuild `codex-rs` and point `CODEX_HOME` at `target/release`.
 
-### Manual Setup Steps
+## Manual Setup Steps
 
-<details>
-<summary>Click to expand manual setup instructions</summary>
+### Installation Option 1: Fresh install (codex-cli or prebuilt bundle)
 
-#### 1. Check for existing Codex runtime assets
-
-If codex-cli already installed Codex runtime assets in `~/.codex`, skip to step 3. Otherwise, continue to step 2 to build them locally.
-
-#### 2. Build the Codex runtime assets (if needed)
+**macOS / Linux**
+1. Install and run `codex --version` once so the CLI unpacks `$HOME/.codex`.
+2. Export:
 
 ```bash
-# Clone the Codex Rust repository
-git clone https://github.com/openai/codex.git $CODEX_RUST_ROOT
-cd $CODEX_RUST_ROOT/codex-rs
-
-# Build the runtime (all platforms)
-cargo build --release
-
-# Option 1: Use directly from the build output
-export CODEX_HOME=$CODEX_RUST_ROOT/codex-rs/target/release
-
-# Option 2: Use the runtime managed by codex-cli (no manual copies)
+export CODEX_TS_SDK_ROOT=/path/to/codex-ts-sdk
 export CODEX_HOME=~/.codex
 ```
 
-#### 3. Build the SDK and its native binding
+**Windows (PowerShell)**
+1. Install codex-cli and run `codex --version`. Runtime files land under `$env:USERPROFILE\.codex`.
+2. Export:
+
+```powershell
+$env:CODEX_TS_SDK_ROOT = 'C:\path\to\codex-ts-sdk'
+$env:CODEX_HOME      = "$env:USERPROFILE\\.codex"
+```
+
+Proceed to [Step 3](#step-3-build-the-sdk-and-its-native-binding).
+
+### Installation Option 2: Update `codex-rs` (local build)
+
+⚠️ Updating `codex-rs` may require matching TypeScript SDK changes. After rebuilding, run `npm run test` and confirm `getCodexCliVersion()` reports the expected runtime version (see `tests/version.test.ts`).
+
+**macOS / Linux**
+```bash
+export CODEX_TS_SDK_ROOT=/path/to/codex-ts-sdk
+export CODEX_RUST_ROOT=/path/to/codex
+cd $CODEX_RUST_ROOT/codex-rs
+cargo build --release
+export CODEX_HOME=$CODEX_RUST_ROOT/codex-rs/target/release
+```
+
+**Windows (PowerShell)**
+```powershell
+$env:CODEX_TS_SDK_ROOT = 'C:\path\to\codex-ts-sdk'
+$env:CODEX_RUST_ROOT   = 'C:\path\to\codex'
+Set-Location "$env:CODEX_RUST_ROOT\\codex-rs"
+cargo build --release
+$env:CODEX_HOME = "$env:CODEX_RUST_ROOT\\codex-rs\\target\\release"
+```
+
+Run `codex --version` to confirm the rebuilt runtime reports the expected version.
+
+### Step 3: Build the SDK and its native binding
 
 **Important:** The `native/codex-napi` directory contains the Rust source code for the N-API binding. You MUST compile it for your platform.
 
@@ -212,7 +282,7 @@ ls -la native/codex-napi/index.node
 
 ### Configure the client
 
-- Set `CODEX_HOME` environment variable to your runtime assets location (for local builds this is usually `$CODEX_RUST_ROOT/codex-rs/target/release`; codex-cli installs assets to `~/.codex`)
+- Set `CODEX_HOME` environment variable to the Codex runtime directory (`~/.codex` when managed by codex-cli, or `$CODEX_RUST_ROOT/codex-rs/target/release` for local builds)
 - Review sandbox and approval policies before connecting; the defaults allow workspace writes only and rely on Codex to request approvals
 - If you built a custom N-API binary, provide its location via `nativeModulePath` when creating the client
 
@@ -227,7 +297,7 @@ ls -la native/codex-napi/index.node
 
 | Option             | Description                                                          |
 | ------------------ | -------------------------------------------------------------------- |
-| `codexHome`        | Path to the Codex assets. Supports `~` expansion.                    |
+| `codexHome`        | Path to the Codex runtime directory (contains binaries and generated state). Supports `~` expansion. |
 | `nativeModulePath` | Override path to the compiled `codex-napi` binary.                   |
 | `logger`           | Partial logger implementation for structured output.                 |
 | `retryPolicy`      | `{ maxRetries, initialDelayMs, backoffFactor }` for connect retries. |
@@ -305,7 +375,7 @@ const client = new CodexClient({
 });
 ```
 
-Set the `CODEX_HOME` environment variable (or pass `codexHome`) to the directory containing the Codex runtime assets produced by `codex-rs` and the SDK will load the matching napi binary.
+Set the `CODEX_HOME` environment variable (or pass `codexHome`) to the directory that contains the Codex runtime assets (`~/.codex` for codex-cli installs, or the Cargo `target/release` output when building locally). The SDK passes that path to the native runtime when loading the N-API binding.
 
 
 ## Binding Coverage

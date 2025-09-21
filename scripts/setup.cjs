@@ -22,13 +22,15 @@ console.log(`  CODEX_TS_SDK_ROOT: ${codexTsSdkRoot}`);
 console.log(`  CODEX_RUST_ROOT: ${codexRustRoot || '(not set)'}`);
 console.log(`  CODEX_HOME: ${codexHome}\n`);
 
-// Step 1: Check for Codex runtime assets
-console.log('Step 1: Checking for Codex runtime assets...');
+// Step 1: Check for Codex runtime directory
+console.log('Step 1: Checking for Codex runtime directory...');
+console.log('   (set CODEX_HOME via Environment Variables section of the README)');
 if (existsSync(codexHome)) {
-  console.log(`✅ Found Codex runtime assets at: ${codexHome}`);
+  console.log(`✅ Found Codex runtime directory: ${codexHome}`);
 } else {
-  console.log(`⚠️  Codex runtime assets not found at: ${codexHome}`);
-  console.log('\nTo build Codex runtime assets:');
+  console.log(`⚠️  Codex runtime directory not found at: ${codexHome}`);
+  console.log('\nInstallation Option 1: run `codex --version` once so codex-cli populates ~/.codex, then re-run this script.');
+  console.log('Installation Option 2: rebuild codex-rs locally:');
   if (isWindows) {
     console.log('1. Set CODEX_RUST_ROOT: $env:CODEX_RUST_ROOT = "C:\\path\\to\\codex"');
     console.log('2. Clone: git clone https://github.com/openai/codex.git $env:CODEX_RUST_ROOT');
@@ -40,7 +42,8 @@ if (existsSync(codexHome)) {
     console.log('3. Build: cd $CODEX_RUST_ROOT/codex-rs && cargo build --release');
     console.log('4. Set CODEX_HOME: export CODEX_HOME=$CODEX_RUST_ROOT/codex-rs/target/release');
   }
-  console.log('   If you use codex-cli, it manages runtime assets under ~/.codex automatically.\n');
+  console.log('   codex-cli installs to ~/.codex automatically.\n   After rebuilding, run npm run test and verify getCodexCliVersion() (see tests/version.test.ts) reports the expected runtime version.
+');
 }
 
 // Step 2: Install dependencies

@@ -21,7 +21,7 @@ describe('nativeModule utilities', () => {
 
   function writeNativeModule(fileName: string, version: string) {
     const filePath = path.join(tempDir, fileName);
-    const contents = `module.exports = {\n  NativeCodex: class NativeCodex {},\n  version: () => '${version}',\n};`;
+    const contents = `module.exports = {\n  NativeCodex: class NativeCodex {},\n  version: () => '${version}',\n  cliVersion: () => '${version}',\n};`;
     fs.writeFileSync(filePath, contents, 'utf8');
     return filePath;
   }

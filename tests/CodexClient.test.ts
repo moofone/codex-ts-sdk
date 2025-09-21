@@ -42,6 +42,7 @@ vi.mock('../src/internal/nativeModule', async () => {
         }
       },
       version: () => 'test-version',
+      cliVersion: () => 'test-version',
     })),
   };
 });
