@@ -144,32 +144,3 @@ if (ensureIndexNodeAlias()) {
 }
 
 console.log('\n✨ Setup complete!\n');
-console.log('Next steps:');
-if (!existsSync(codexHome)) {
-  console.log('1. Build Codex runtime assets (see instructions above)');
-}
-const nextNum = existsSync(codexHome) ? 1 : 2;
-console.log(`${nextNum}. Set environment variables:`);
-
-if (isWindows) {
-  if (!process.env.CODEX_TS_SDK_ROOT) {
-    console.log(`   $env:CODEX_TS_SDK_ROOT = "${projectRoot}"`);
-  }
-  if (!process.env.CODEX_RUST_ROOT && codexRustRoot) {
-    console.log(`   $env:CODEX_RUST_ROOT = "${codexRustRoot}"`);
-  }
-  console.log(`   $env:CODEX_HOME = "${codexHome}"`);
-  console.log(`${nextNum + 1}. Try the examples:`);
-  console.log(`   cd $env:CODEX_TS_SDK_ROOT`);
-} else {
-  if (!process.env.CODEX_TS_SDK_ROOT) {
-    console.log(`   export CODEX_TS_SDK_ROOT="${projectRoot}"`);
-  }
-  if (!process.env.CODEX_RUST_ROOT && codexRustRoot) {
-    console.log(`   export CODEX_RUST_ROOT="${codexRustRoot}"`);
-  }
-  console.log(`   export CODEX_HOME="${codexHome}"`);
-  console.log(`${nextNum + 1}. Try the examples:`);
-  console.log(`   cd $CODEX_TS_SDK_ROOT`);
-}
-console.log('   node examples/basic-chat.js');
