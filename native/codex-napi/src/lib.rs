@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 use codex_core::config::{self, Config, ConfigOverrides};
 use codex_core::{CodexConversation, ConversationManager};
 use codex_core::protocol::{Event, EventMsg, Submission};
+use codex_core::default_client::get_codex_user_agent;
 use codex_core::AuthManager;
 use codex_protocol::mcp_protocol::ConversationId;
 use napi_derive::napi;
@@ -166,4 +167,15 @@ fn serialize_event(event: Event) -> napi::Result<String> {
 #[napi]
 pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
+}
+
+#[napi]
+pub fn cli_version() -> String {
+    let user_agent = get_codex_user_agent();
+    user_agent
+        .split('/')
+        .nth(1)
+        .and_then(|rest| rest.split_whitespace().next())
+        .unwrap_or("0.0.0")
+        .to_string()
 }

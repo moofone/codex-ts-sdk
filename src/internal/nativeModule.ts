@@ -70,6 +70,7 @@ export interface NativeCodexInstance {
 export interface CodexNativeModule {
   NativeCodex: NativeCodexBinding;
   version(): string;
+  cliVersion(): string;
 }
 
 export interface LoadNativeModuleOptions {
