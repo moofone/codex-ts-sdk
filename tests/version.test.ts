@@ -17,7 +17,7 @@ describe('getCodexCliVersion', () => {
     const version = getCodexCliVersion();
     console.log('[getCodexCliVersion]', version);
     expect(version).toBe('0.39.0');
-    expect(version).toMatch(/^0\.\d+\.\d+$/);
+    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
   it('throws if cliVersion is missing', () => {

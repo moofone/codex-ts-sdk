@@ -1,9 +1,11 @@
 import type { LoadNativeModuleOptions } from './internal/nativeModule';
 import { loadNativeModule } from './internal/nativeModule';
 
+const SEMVER_PATTERN = /\d+\.\d+\.\d+/;
+
 function normalizeVersion(raw: string): string {
   const trimmed = raw.trim();
-  const match = trimmed.match(/0\.\d+\.\d+/);
+  const match = trimmed.match(SEMVER_PATTERN);
   return match ? match[0] : trimmed;
 }
 
