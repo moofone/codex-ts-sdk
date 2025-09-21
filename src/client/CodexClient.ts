@@ -723,6 +723,147 @@ export class CodexClient extends EventEmitter {
     }
   }
 
+  on(
+    event: 'sessionConfigured',
+    listener: CodexClientEventListener<SessionConfiguredEventMessage>,
+  ): this;
+  on(
+    event: 'execCommandApproval',
+    listener: CodexClientEventListener<ExecApprovalRequestEventMessage>,
+  ): this;
+  on(
+    event: 'applyPatchApproval',
+    listener: CodexClientEventListener<ApplyPatchApprovalRequestEventMessage>,
+  ): this;
+  on(event: 'notification', listener: CodexClientEventListener<NotificationEventMessage>): this;
+  on(
+    event: 'conversationPath',
+    listener: CodexClientEventListener<ConversationPathEventMessage>,
+  ): this;
+  on(
+    event: 'shutdownComplete',
+    listener: CodexClientEventListener<ShutdownCompleteEventMessage>,
+  ): this;
+  on(event: 'turnContext', listener: CodexClientEventListener<TurnContextEventMessage>): this;
+  on(
+    event: 'historyEntry',
+    listener: CodexClientEventListener<GetHistoryEntryResponseEventMessage>,
+  ): this;
+  on(event: 'mcpTools', listener: CodexClientEventListener<McpListToolsResponseEventMessage>): this;
+  on(
+    event: 'customPrompts',
+    listener: CodexClientEventListener<ListCustomPromptsResponseEventMessage>,
+  ): this;
+  on(
+    event: 'enteredReviewMode',
+    listener: CodexClientEventListener<EnteredReviewModeEventMessage>,
+  ): this;
+  on(
+    event: 'exitedReviewMode',
+    listener: CodexClientEventListener<ExitedReviewModeEventMessage>,
+  ): this;
+  on(event: 'event', listener: CodexClientEventListener<CodexEvent>): this;
+  on(event: 'error', listener: (error: unknown) => void): this;
+  on(event: typeof EVENT_STREAM_CLOSED, listener: () => void): this;
+  on(event: string, listener: (...args: unknown[]) => void): this {
+    return super.on(event, listener as (...args: unknown[]) => void);
+  }
+
+  once(
+    event: 'sessionConfigured',
+    listener: CodexClientEventListener<SessionConfiguredEventMessage>,
+  ): this;
+  once(
+    event: 'execCommandApproval',
+    listener: CodexClientEventListener<ExecApprovalRequestEventMessage>,
+  ): this;
+  once(
+    event: 'applyPatchApproval',
+    listener: CodexClientEventListener<ApplyPatchApprovalRequestEventMessage>,
+  ): this;
+  once(event: 'notification', listener: CodexClientEventListener<NotificationEventMessage>): this;
+  once(
+    event: 'conversationPath',
+    listener: CodexClientEventListener<ConversationPathEventMessage>,
+  ): this;
+  once(
+    event: 'shutdownComplete',
+    listener: CodexClientEventListener<ShutdownCompleteEventMessage>,
+  ): this;
+  once(event: 'turnContext', listener: CodexClientEventListener<TurnContextEventMessage>): this;
+  once(
+    event: 'historyEntry',
+    listener: CodexClientEventListener<GetHistoryEntryResponseEventMessage>,
+  ): this;
+  once(
+    event: 'mcpTools',
+    listener: CodexClientEventListener<McpListToolsResponseEventMessage>,
+  ): this;
+  once(
+    event: 'customPrompts',
+    listener: CodexClientEventListener<ListCustomPromptsResponseEventMessage>,
+  ): this;
+  once(
+    event: 'enteredReviewMode',
+    listener: CodexClientEventListener<EnteredReviewModeEventMessage>,
+  ): this;
+  once(
+    event: 'exitedReviewMode',
+    listener: CodexClientEventListener<ExitedReviewModeEventMessage>,
+  ): this;
+  once(event: 'event', listener: CodexClientEventListener<CodexEvent>): this;
+  once(event: 'error', listener: (error: unknown) => void): this;
+  once(event: typeof EVENT_STREAM_CLOSED, listener: () => void): this;
+  once(event: string, listener: (...args: unknown[]) => void): this {
+    return super.once(event, listener as (...args: unknown[]) => void);
+  }
+
+  off(
+    event: 'sessionConfigured',
+    listener: CodexClientEventListener<SessionConfiguredEventMessage>,
+  ): this;
+  off(
+    event: 'execCommandApproval',
+    listener: CodexClientEventListener<ExecApprovalRequestEventMessage>,
+  ): this;
+  off(
+    event: 'applyPatchApproval',
+    listener: CodexClientEventListener<ApplyPatchApprovalRequestEventMessage>,
+  ): this;
+  off(event: 'notification', listener: CodexClientEventListener<NotificationEventMessage>): this;
+  off(
+    event: 'conversationPath',
+    listener: CodexClientEventListener<ConversationPathEventMessage>,
+  ): this;
+  off(
+    event: 'shutdownComplete',
+    listener: CodexClientEventListener<ShutdownCompleteEventMessage>,
+  ): this;
+  off(event: 'turnContext', listener: CodexClientEventListener<TurnContextEventMessage>): this;
+  off(
+    event: 'historyEntry',
+    listener: CodexClientEventListener<GetHistoryEntryResponseEventMessage>,
+  ): this;
+  off(event: 'mcpTools', listener: CodexClientEventListener<McpListToolsResponseEventMessage>): this;
+  off(
+    event: 'customPrompts',
+    listener: CodexClientEventListener<ListCustomPromptsResponseEventMessage>,
+  ): this;
+  off(
+    event: 'enteredReviewMode',
+    listener: CodexClientEventListener<EnteredReviewModeEventMessage>,
+  ): this;
+  off(
+    event: 'exitedReviewMode',
+    listener: CodexClientEventListener<ExitedReviewModeEventMessage>,
+  ): this;
+  off(event: 'event', listener: CodexClientEventListener<CodexEvent>): this;
+  off(event: 'error', listener: (error: unknown) => void): this;
+  off(event: typeof EVENT_STREAM_CLOSED, listener: () => void): this;
+  off(event: string, listener: (...args: unknown[]) => void): this {
+    return super.off(event, listener as (...args: unknown[]) => void);
+  }
+
   private requireSession(): CodexSessionHandle {
     if (!this.session) {
       throw new CodexSessionError('No active Codex session. Call createConversation first.');
@@ -944,68 +1085,6 @@ export interface ExitedReviewModeEventMessage extends CodexEventMessage {
   review_output?: ReviewOutputEventMessage;
 }
 
-export interface CodexClient {
-  on(event: 'sessionConfigured', listener: CodexClientEventListener<SessionConfiguredEventMessage>): this;
-  on(event: 'execCommandApproval', listener: CodexClientEventListener<ExecApprovalRequestEventMessage>): this;
-  on(
-    event: 'applyPatchApproval',
-    listener: CodexClientEventListener<ApplyPatchApprovalRequestEventMessage>,
-  ): this;
-  on(event: 'notification', listener: CodexClientEventListener<NotificationEventMessage>): this;
-  on(event: 'conversationPath', listener: CodexClientEventListener<ConversationPathEventMessage>): this;
-  on(event: 'shutdownComplete', listener: CodexClientEventListener<ShutdownCompleteEventMessage>): this;
-  on(event: 'turnContext', listener: CodexClientEventListener<TurnContextEventMessage>): this;
-  on(event: 'historyEntry', listener: CodexClientEventListener<GetHistoryEntryResponseEventMessage>): this;
-  on(event: 'mcpTools', listener: CodexClientEventListener<McpListToolsResponseEventMessage>): this;
-  on(event: 'customPrompts', listener: CodexClientEventListener<ListCustomPromptsResponseEventMessage>): this;
-  on(event: 'enteredReviewMode', listener: CodexClientEventListener<EnteredReviewModeEventMessage>): this;
-  on(event: 'exitedReviewMode', listener: CodexClientEventListener<ExitedReviewModeEventMessage>): this;
-  on(event: 'event', listener: CodexClientEventListener<CodexEvent>): this;
-  on(event: 'error', listener: (error: unknown) => void): this;
-  on(event: typeof EVENT_STREAM_CLOSED, listener: () => void): this;
-
-  once(event: 'sessionConfigured', listener: CodexClientEventListener<SessionConfiguredEventMessage>): this;
-  once(event: 'execCommandApproval', listener: CodexClientEventListener<ExecApprovalRequestEventMessage>): this;
-  once(
-    event: 'applyPatchApproval',
-    listener: CodexClientEventListener<ApplyPatchApprovalRequestEventMessage>,
-  ): this;
-  once(event: 'notification', listener: CodexClientEventListener<NotificationEventMessage>): this;
-  once(event: 'conversationPath', listener: CodexClientEventListener<ConversationPathEventMessage>): this;
-  once(event: 'shutdownComplete', listener: CodexClientEventListener<ShutdownCompleteEventMessage>): this;
-  once(event: 'turnContext', listener: CodexClientEventListener<TurnContextEventMessage>): this;
-  once(event: 'historyEntry', listener: CodexClientEventListener<GetHistoryEntryResponseEventMessage>): this;
-  once(event: 'mcpTools', listener: CodexClientEventListener<McpListToolsResponseEventMessage>): this;
-  once(event: 'customPrompts', listener: CodexClientEventListener<ListCustomPromptsResponseEventMessage>): this;
-  once(event: 'enteredReviewMode', listener: CodexClientEventListener<EnteredReviewModeEventMessage>): this;
-  once(event: 'exitedReviewMode', listener: CodexClientEventListener<ExitedReviewModeEventMessage>): this;
-  once(event: 'event', listener: CodexClientEventListener<CodexEvent>): this;
-  once(event: 'error', listener: (error: unknown) => void): this;
-  once(event: typeof EVENT_STREAM_CLOSED, listener: () => void): this;
-
-  off(event: 'sessionConfigured', listener: CodexClientEventListener<SessionConfiguredEventMessage>): this;
-  off(event: 'execCommandApproval', listener: CodexClientEventListener<ExecApprovalRequestEventMessage>): this;
-  off(
-    event: 'applyPatchApproval',
-    listener: CodexClientEventListener<ApplyPatchApprovalRequestEventMessage>,
-  ): this;
-  off(event: 'notification', listener: CodexClientEventListener<NotificationEventMessage>): this;
-  off(event: 'conversationPath', listener: CodexClientEventListener<ConversationPathEventMessage>): this;
-  off(event: 'shutdownComplete', listener: CodexClientEventListener<ShutdownCompleteEventMessage>): this;
-  off(event: 'turnContext', listener: CodexClientEventListener<TurnContextEventMessage>): this;
-  off(event: 'historyEntry', listener: CodexClientEventListener<GetHistoryEntryResponseEventMessage>): this;
-  off(event: 'mcpTools', listener: CodexClientEventListener<McpListToolsResponseEventMessage>): this;
-  off(event: 'customPrompts', listener: CodexClientEventListener<ListCustomPromptsResponseEventMessage>): this;
-  off(event: 'enteredReviewMode', listener: CodexClientEventListener<EnteredReviewModeEventMessage>): this;
-  off(event: 'exitedReviewMode', listener: CodexClientEventListener<ExitedReviewModeEventMessage>): this;
-  off(event: 'event', listener: CodexClientEventListener<CodexEvent>): this;
-  off(event: 'error', listener: (error: unknown) => void): this;
-  off(event: typeof EVENT_STREAM_CLOSED, listener: () => void): this;
-
-  on(event: string, listener: (...args: unknown[]) => void): this;
-  once(event: string, listener: (...args: unknown[]) => void): this;
-  off(event: string, listener: (...args: unknown[]) => void): this;
-}
 function expandHomePath(input: string): string {
   const trimmed = input.trim();
   if (!trimmed) {
