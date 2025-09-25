@@ -1,6 +1,4 @@
 import { EventEmitter } from 'events';
-import * as os from 'os';
-import * as path from 'path';
 import type { InputItem } from '../bindings/InputItem';
 import type { AskForApproval } from '../bindings/AskForApproval';
 import type { SandboxPolicy } from '../bindings/SandboxPolicy';
@@ -47,6 +45,7 @@ import { log } from '../utils/logger';
 import { withRetry } from '../utils/retry';
 import type { CodexPlugin } from '../plugins/types';
 import { resolveModelVariant } from '../utils/models';
+import { expandHomePath } from '../utils/path';
 
 const EVENT_STREAM_CLOSED = 'eventStreamClosed';
 const DEFAULT_MODEL = 'gpt-5-codex';
@@ -1083,36 +1082,6 @@ export interface EnteredReviewModeEventMessage extends ReviewRequest, CodexEvent
 export interface ExitedReviewModeEventMessage extends CodexEventMessage {
   type: 'exited_review_mode';
   review_output?: ReviewOutputEventMessage;
-}
-
-function expandHomePath(input: string): string {
-  const trimmed = input.trim();
-  if (!trimmed) {
-    return trimmed;
-  }
-
-  if (!trimmed.startsWith('~')) {
-    return trimmed;
-  }
-
-  const home = os.homedir();
-  if (!home) {
-    return trimmed;
-  }
-
-  if (trimmed === '~') {
-    return home;
-  }
-
-  if (trimmed.startsWith('~/')) {
-    return path.join(home, trimmed.slice(2));
-  }
-
-  if (trimmed.startsWith('~\\')) {
-    return path.join(home, trimmed.slice(2));
-  }
-
-  return path.join(home, trimmed.slice(1));
 }
 
 function errorMessage(error: unknown): string {

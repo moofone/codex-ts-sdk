@@ -43,6 +43,18 @@ for await (const event of client.events()) {
 }
 ```
 
+### Authentication helpers
+
+To persist an API key for the native runtime, call `loginWithApiKey` once (this mirrors `codex login --api-key ...`):
+
+```ts
+import { loginWithApiKey } from 'codex-ts-sdk';
+
+loginWithApiKey(process.env.OPENAI_API_KEY!, { codexHome: process.env.CODEX_HOME });
+```
+
+If you prefer the browser-based ChatGPT OAuth flow, run `codex login` from the CLI instead.
+
 ## Useful scripts
 - `npm run setup` – install, build, native compile, smoke check
 - `npm run build` / `npm run build:native`

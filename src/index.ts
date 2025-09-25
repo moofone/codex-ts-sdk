@@ -53,3 +53,4 @@ export { resolveModelVariant, getSupportedEfforts } from './utils/models';
 export type { ResolvedModelVariant } from './utils/models';
 export type { RetryPolicy } from './utils/retry';
 export { getCodexCliVersion } from './version';
+export { loginWithApiKey } from './auth';
