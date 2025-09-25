@@ -1,4 +1,5 @@
 # Node
+AGENTS.md
 node_modules/
 .npm-debug.log*
 yarn-debug.log*
