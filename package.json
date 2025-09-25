@@ -73,6 +73,7 @@
     "build:esm": "tsc -p tsconfig.build.json",
     "build:cjs": "tsc -p tsconfig.build.cjs.json",
     "build:types": "tsc -p tsconfig.types.json",
+    "prepublishOnly": "npm run package",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src --ext .ts",
     "test": "vitest run",
