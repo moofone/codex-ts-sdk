@@ -13,7 +13,7 @@ coverage/
 .vitest/
 *.node
 native/prebuilt/
-native/codex-napi/target/
+native/codex-napi/
 
 # TypeScript
 *.tsbuildinfo
