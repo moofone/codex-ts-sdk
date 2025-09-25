@@ -23,6 +23,8 @@ export type { InputItem } from "./InputItem";
 export type { InterruptConversationParams } from "./InterruptConversationParams";
 export type { InterruptConversationResponse } from "./InterruptConversationResponse";
 export type { LoginChatGptCompleteNotification } from "./LoginChatGptCompleteNotification";
+export type { LoginApiKeyParams } from "./LoginApiKeyParams";
+export type { LoginApiKeyResponse } from "./LoginApiKeyResponse";
 export type { LoginChatGptResponse } from "./LoginChatGptResponse";
 export type { LogoutChatGptParams } from "./LogoutChatGptParams";
 export type { LogoutChatGptResponse } from "./LogoutChatGptResponse";

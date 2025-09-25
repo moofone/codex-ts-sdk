@@ -2,7 +2,7 @@
 
 These scripts demonstrate a live connection to Codex using the native Node binding. They assume you have already:
 
-1. Logged into the Codex CLI (`codex auth login chatgpt`) so the runtime is populated under `~/.codex`.
+1. Logged into the Codex CLI (for example `codex login --api-key sk-...` or `codex login` for the ChatGPT flow) so the runtime is populated under `~/.codex`.
 2. Exported `CODEX_HOME` to that runtime directory, e.g.:
 
    ```bash
