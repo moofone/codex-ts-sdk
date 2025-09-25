@@ -1,6 +1,6 @@
 {
   "name": "@flo-ai/codex-ts-sdk",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "TypeScript client for Codex native runtime",
   "keywords": [
     "flo-ai", 
