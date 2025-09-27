@@ -1,4 +1,5 @@
 # Node
+spec/
 AGENTS.md
 node_modules/
 .npm-debug.log*
