@@ -4,7 +4,6 @@ use std::sync::{Arc, Mutex};
 use codex_core::config::{self, Config, ConfigOverrides};
 use codex_core::{CodexConversation, ConversationManager};
 use codex_core::protocol::{Event, EventMsg, Submission};
-use codex_core::default_client::get_codex_user_agent;
 use codex_core::AuthManager;
 use codex_protocol::mcp_protocol::ConversationId;
 use napi_derive::napi;
@@ -92,6 +91,9 @@ pub struct NativeCodex {
 impl NativeCodex {
     #[napi(constructor)]
     pub fn new(options: Option<NativeCodexOptions>) -> napi::Result<Self> {
+        // Set the originator to identify as codex_cli_rs for consistent server-side treatment
+        std::env::set_var("CODEX_INTERNAL_ORIGINATOR_OVERRIDE", "codex_cli_rs");
+
         let codex_home = if let Some(opts) = options.and_then(|o| o.codex_home) {
             std::path::PathBuf::from(opts)
         } else {
@@ -161,21 +163,22 @@ fn parse_toml_value(raw: &str) -> Option<toml::Value> {
 }
 
 fn serialize_event(event: Event) -> napi::Result<String> {
+    // Serialize the event directly - rate limits come from actual API responses
     serde_json::to_string(&event).map_err(|err| napi::Error::from_reason(err.to_string()))
+}
+
+fn resolved_version() -> &'static str {
+    option_env!("CODEX_CLI_VERSION")
+        .or_else(|| option_env!("CODEX_RS_VERSION"))
+        .unwrap_or("0.0.0")
 }
 
 #[napi]
 pub fn version() -> String {
-    env!("CARGO_PKG_VERSION").to_string()
+    resolved_version().to_string()
 }
 
 #[napi]
 pub fn cli_version() -> String {
-    let user_agent = get_codex_user_agent();
-    user_agent
-        .split('/')
-        .nth(1)
-        .and_then(|rest| rest.split_whitespace().next())
-        .unwrap_or("0.0.0")
-        .to_string()
+    resolved_version().to_string()
 }

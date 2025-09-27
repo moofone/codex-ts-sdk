@@ -25,7 +25,8 @@ export type SubmissionOp =
   | ListCustomPromptsOp
   | CompactOp
   | ReviewOp
-  | ShutdownOp;
+  | ShutdownOp
+  | StatusOp;
 
 export interface UserInputOp {
   type: 'user_input';
@@ -108,6 +109,10 @@ export interface ReviewOp {
 
 export interface ShutdownOp {
   type: 'shutdown';
+}
+
+export interface StatusOp {
+  type: 'status';
 }
 
 export interface CreateUserTurnSubmissionOptions {
@@ -303,6 +308,7 @@ export function createGetPathSubmission(id: string): SubmissionEnvelope<GetPathO
   };
 }
 
+
 export function createListMcpToolsSubmission(id: string): SubmissionEnvelope<ListMcpToolsOp> {
   return {
     id,
@@ -348,6 +354,15 @@ export function createShutdownSubmission(id: string): SubmissionEnvelope<Shutdow
     id,
     op: {
       type: 'shutdown',
+    },
+  };
+}
+
+export function createStatusSubmission(id: string): SubmissionEnvelope<StatusOp> {
+  return {
+    id,
+    op: {
+      type: 'status',
     },
   };
 }

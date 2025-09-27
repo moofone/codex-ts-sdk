@@ -1,19 +1,43 @@
 import { EventEmitter } from 'events';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import type { InputItem } from '../bindings/InputItem';
 import type { AskForApproval } from '../bindings/AskForApproval';
 import type { SandboxPolicy } from '../bindings/SandboxPolicy';
 import type { ReasoningEffort } from '../bindings/ReasoningEffort';
 import type { ReasoningSummary } from '../bindings/ReasoningSummary';
-import type { FileChange } from '../bindings/FileChange';
-import type { CodexEvent, CodexEventMessage } from '../types/events';
+import type {
+  ApplyPatchApprovalRequestEventMessage,
+  CodexEvent,
+  CodexEventMessage,
+  ConversationPathEventMessage,
+  EnteredReviewModeEventMessage,
+  ExecApprovalRequestEventMessage,
+  ExitedReviewModeEventMessage,
+  GetHistoryEntryResponseEventMessage,
+  ListCustomPromptsResponseEventMessage,
+  McpListToolsResponseEventMessage,
+  NotificationEventMessage,
+  SessionConfiguredEventMessage,
+  SessionCreatedEventMessage,
+  ShutdownCompleteEventMessage,
+  TaskCompleteEventMessage,
+  TaskStartedEventMessage,
+  TokenCountEventMessage,
+  TurnCompletedEventMessage,
+  TurnContextEventMessage,
+  TurnStartedEventMessage,
+} from '../types/events';
 import type {
   CodexClientConfig,
   CreateConversationOptions,
   GetHistoryEntryRequestOptions,
+  GetStatusOptions,
   OverrideTurnContextOptions,
   ReviewRequestInput,
   SendMessageOptions,
   SendUserTurnOptions,
+  StatusResponse,
 } from '../types/options';
 import type { ReviewRequest, SubmissionEnvelope } from '../internal/submissions';
 import {
@@ -29,9 +53,11 @@ import {
   createPatchApprovalSubmission,
   createReviewSubmission,
   createShutdownSubmission,
+  createStatusSubmission,
   createUserInputSubmission,
   createUserTurnSubmission,
 } from '../internal/submissions';
+import { StatusStore } from '../internal/StatusStore';
 import {
   loadNativeModule,
   type NativeCodexInstance,
@@ -58,6 +84,8 @@ const DEFAULT_SANDBOX_POLICY: SandboxPolicy = {
   exclude_slash_tmp: false,
 };
 
+const VERSION_PATTERN = /\d+\.\d+\.\d+/;
+
 const APPROVAL_POLICY_VALUES: readonly AskForApproval[] = ['untrusted', 'on-failure', 'on-request', 'never'];
 const REASONING_EFFORT_VALUES: readonly ReasoningEffort[] = ['minimal', 'low', 'medium', 'high'];
 const REASONING_SUMMARY_VALUES: readonly ReasoningSummary[] = ['auto', 'concise', 'detailed', 'none'];
@@ -71,11 +99,17 @@ export class CodexClient extends EventEmitter {
   protected readonly logger: PartialCodexLogger;
   private readonly plugins: CodexPlugin[];
   private pluginsInitialized = false;
+  private readonly statusStore = new StatusStore();
+  private readonly skipVersionCheck: boolean;
 
   constructor(private readonly config: CodexClientConfig = {}) {
     super();
     this.logger = config.logger ?? {};
     this.plugins = [...(config.plugins ?? [])];
+    this.skipVersionCheck = config.skipVersionCheck ?? process.env.CODEX_SKIP_VERSION_CHECK === '1';
+    if (!this.skipVersionCheck) {
+      this.warnOnVersionMismatch();
+    }
   }
 
   registerPlugin(plugin: CodexPlugin): void {
@@ -90,6 +124,27 @@ export class CodexClient extends EventEmitter {
           });
         });
       }
+    }
+  }
+
+  private warnOnVersionMismatch(): void {
+    if (this.skipVersionCheck) {
+      return;
+    }
+    try {
+      const nativeVersion = resolveNativeVersion(this.config);
+      if (!nativeVersion) {
+        log(this.logger, 'debug', 'Unable to determine native binding version');
+        return;
+      }
+
+      log(this.logger, 'debug', 'Codex native version detected', {
+        nativeVersion,
+      });
+    } catch (error) {
+      log(this.logger, 'warn', 'Failed to validate codex versions', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -141,6 +196,8 @@ export class CodexClient extends EventEmitter {
     if (!this.native) {
       throw new CodexConnectionError('Native bindings not initialised');
     }
+
+    this.statusStore.clear();
 
     const overrides = formatOverrides(options.overrides);
     try {
@@ -346,6 +403,18 @@ export class CodexClient extends EventEmitter {
     const session = this.requireSession();
     const submission = createGetPathSubmission(this.generateRequestId());
     await this.submit(session, submission);
+  }
+
+  async getStatus(options: GetStatusOptions = {}): Promise<StatusResponse> {
+    const { refresh = true } = options;
+
+    if (refresh) {
+      const session = this.requireSession();
+      const submission = createStatusSubmission(this.generateRequestId());
+      await this.submit(session, submission);
+    }
+
+    return this.statusStore.getStatus();
   }
 
   async shutdown(): Promise<void> {
@@ -646,7 +715,29 @@ export class CodexClient extends EventEmitter {
   private routeEvent(event: CodexEvent): void {
     switch (event.msg.type) {
       case 'session_configured':
+        this.statusStore.updateSessionInfo(event.msg as SessionConfiguredEventMessage);
         this.emit('sessionConfigured', event.msg as SessionConfiguredEventMessage);
+        break;
+      case 'session.created':
+        this.emit('sessionCreated', event.msg as SessionCreatedEventMessage);
+        break;
+      case 'turn.started':
+        this.emit('turnStarted', event.msg as TurnStartedEventMessage);
+        break;
+      case 'turn.completed':
+        this.emit('turnCompleted', event.msg as TurnCompletedEventMessage);
+        break;
+      case 'token_count':
+        this.statusStore.updateFromTokenCountEvent(event.msg as TokenCountEventMessage);
+        this.emit('tokenCount', event.msg as TokenCountEventMessage);
+        break;
+      case 'task_started':
+        this.statusStore.updateFromTaskStartedEvent(event.msg as TaskStartedEventMessage);
+        this.emit('taskStarted', event.msg as TaskStartedEventMessage);
+        break;
+      case 'task_complete':
+        this.statusStore.updateFromTaskCompleteEvent(event.msg as TaskCompleteEventMessage);
+        this.emit('taskComplete', event.msg as TaskCompleteEventMessage);
         break;
       case 'exec_approval_request':
         this.emit('execCommandApproval', event.msg as ExecApprovalRequestEventMessage);
@@ -701,6 +792,7 @@ export class CodexClient extends EventEmitter {
 
     this.session = undefined;
     this.eventLoop = undefined;
+    this.statusStore.clear();
 
     if (session) {
       try {
@@ -726,6 +818,12 @@ export class CodexClient extends EventEmitter {
     event: 'sessionConfigured',
     listener: CodexClientEventListener<SessionConfiguredEventMessage>,
   ): this;
+  on(event: 'sessionCreated', listener: CodexClientEventListener<SessionCreatedEventMessage>): this;
+  on(event: 'turnStarted', listener: CodexClientEventListener<TurnStartedEventMessage>): this;
+  on(event: 'turnCompleted', listener: CodexClientEventListener<TurnCompletedEventMessage>): this;
+  on(event: 'tokenCount', listener: CodexClientEventListener<TokenCountEventMessage>): this;
+  on(event: 'taskStarted', listener: CodexClientEventListener<TaskStartedEventMessage>): this;
+  on(event: 'taskComplete', listener: CodexClientEventListener<TaskCompleteEventMessage>): this;
   on(
     event: 'execCommandApproval',
     listener: CodexClientEventListener<ExecApprovalRequestEventMessage>,
@@ -772,6 +870,12 @@ export class CodexClient extends EventEmitter {
     event: 'sessionConfigured',
     listener: CodexClientEventListener<SessionConfiguredEventMessage>,
   ): this;
+  once(event: 'sessionCreated', listener: CodexClientEventListener<SessionCreatedEventMessage>): this;
+  once(event: 'turnStarted', listener: CodexClientEventListener<TurnStartedEventMessage>): this;
+  once(event: 'turnCompleted', listener: CodexClientEventListener<TurnCompletedEventMessage>): this;
+  once(event: 'tokenCount', listener: CodexClientEventListener<TokenCountEventMessage>): this;
+  once(event: 'taskStarted', listener: CodexClientEventListener<TaskStartedEventMessage>): this;
+  once(event: 'taskComplete', listener: CodexClientEventListener<TaskCompleteEventMessage>): this;
   once(
     event: 'execCommandApproval',
     listener: CodexClientEventListener<ExecApprovalRequestEventMessage>,
@@ -821,6 +925,12 @@ export class CodexClient extends EventEmitter {
     event: 'sessionConfigured',
     listener: CodexClientEventListener<SessionConfiguredEventMessage>,
   ): this;
+  off(event: 'sessionCreated', listener: CodexClientEventListener<SessionCreatedEventMessage>): this;
+  off(event: 'turnStarted', listener: CodexClientEventListener<TurnStartedEventMessage>): this;
+  off(event: 'turnCompleted', listener: CodexClientEventListener<TurnCompletedEventMessage>): this;
+  off(event: 'tokenCount', listener: CodexClientEventListener<TokenCountEventMessage>): this;
+  off(event: 'taskStarted', listener: CodexClientEventListener<TaskStartedEventMessage>): this;
+  off(event: 'taskComplete', listener: CodexClientEventListener<TaskCompleteEventMessage>): this;
   off(
     event: 'execCommandApproval',
     listener: CodexClientEventListener<ExecApprovalRequestEventMessage>,
@@ -965,124 +1075,132 @@ function isSandboxPolicyValue(value: unknown): value is SandboxPolicy {
 
 type CodexClientEventListener<T> = (event: T) => void;
 
-export interface SessionConfiguredEventMessage extends CodexEventMessage {
-  type: 'session_configured';
-  session_id: string;
-  model: string;
-  reasoning_effort?: ReasoningEffort;
-  history_log_id: number;
-  history_entry_count: number;
-  initial_messages?: CodexEventMessage[];
-  rollout_path: string;
+export type {
+  ApplyPatchApprovalRequestEventMessage,
+  ConversationPathEventMessage,
+  CustomPromptDefinition,
+  EnteredReviewModeEventMessage,
+  ExecApprovalRequestEventMessage,
+  ExitedReviewModeEventMessage,
+  GetHistoryEntryResponseEventMessage,
+  HistoryEntryEvent,
+  ListCustomPromptsResponseEventMessage,
+  McpListToolsResponseEventMessage,
+  McpToolDefinition,
+  NotificationEventMessage,
+  ReviewCodeLocation,
+  ReviewFinding,
+  ReviewLineRange,
+  ReviewOutputEventMessage,
+  SessionConfiguredEventMessage,
+  SessionCreatedEventMessage,
+  ShutdownCompleteEventMessage,
+  TaskCompleteEventMessage,
+  TaskStartedEventMessage,
+  TokenCountEventMessage,
+  TurnCompletedEventMessage,
+  TurnContextEventMessage,
+  TurnStartedEventMessage,
+  TurnUsageSummary,
+} from '../types/events';
+
+function resolveNativeVersion(config: CodexClientConfig): string | undefined {
+  const moduleVersion = detectVersionFromNativeModule(config);
+  if (moduleVersion && moduleVersion !== '0.0.0') {
+    return moduleVersion;
+  }
+
+  if (moduleVersion === '0.0.0') {
+    throw new Error('Native module reports version 0.0.0 – rebuild codex-rs from a tagged release to embed a real version.');
+  }
+
+  const cargoVersion = detectVersionFromCargoToml(config);
+  if (cargoVersion) {
+    return cargoVersion;
+  }
+
+  return moduleVersion;
 }
 
-export interface ExecApprovalRequestEventMessage extends CodexEventMessage {
-  type: 'exec_approval_request';
-  call_id: string;
-  command: string[];
-  cwd: string;
-  reason?: string;
-  id?: string;
+function normalizeVersion(raw: string): string {
+  const trimmed = raw.trim();
+  const match = trimmed.match(VERSION_PATTERN);
+  return match ? match[0] : trimmed;
 }
 
-export interface ApplyPatchApprovalRequestEventMessage extends CodexEventMessage {
-  type: 'apply_patch_approval_request';
-  call_id: string;
-  changes: Record<string, FileChange>;
-  reason?: string;
-  grant_root?: string;
-  id?: string;
+function detectVersionFromNativeModule(config: CodexClientConfig): string | undefined {
+  try {
+    const module = loadNativeModule({
+      modulePath: config.nativeModulePath,
+      logger: config.logger,
+    });
+    const detected =
+      typeof module.cliVersion === 'function'
+        ? module.cliVersion()
+        : typeof module.version === 'function'
+          ? module.version()
+          : undefined;
+    if (typeof detected === 'string' && detected.trim()) {
+      return normalizeVersion(detected);
+    }
+  } catch {
+    // Best-effort only
+  }
+  return undefined;
 }
 
-export interface NotificationEventMessage extends CodexEventMessage {
-  type: 'notification';
-  content?: string;
+function detectVersionFromCargoToml(config: CodexClientConfig): string | undefined {
+  for (const manifest of gatherCargoTomlCandidates(config)) {
+    try {
+      if (!existsSync(manifest)) {
+        continue;
+      }
+      const contents = readFileSync(manifest, 'utf8');
+      const workspaceMatch = contents.match(/\[workspace\.package\][^\[]*version\s*=\s*"([^"]+)"/);
+      if (workspaceMatch?.[1]) {
+        return normalizeVersion(workspaceMatch[1]);
+      }
+      const packageMatch = contents.match(
+        /\[package\][^\[]*name\s*=\s*"codex-cli"[^\[]*version\s*=\s*"([^"]+)"/,
+      );
+      if (packageMatch?.[1]) {
+        return normalizeVersion(packageMatch[1]);
+      }
+      const genericMatch = contents.match(/\[package\][^\[]*version\s*=\s*"([^"]+)"/);
+      if (genericMatch?.[1]) {
+        return normalizeVersion(genericMatch[1]);
+      }
+    } catch {
+      // ignore and try next manifest
+    }
+  }
+  return undefined;
 }
 
-export interface ConversationPathEventMessage extends CodexEventMessage {
-  type: 'conversation_path';
-  conversation_id: string;
-  path: string;
+function gatherCargoTomlCandidates(config: CodexClientConfig): string[] {
+  const roots = new Set<string>();
+  const addRoot = (value: string | undefined) => {
+    if (!value) {
+      return;
+    }
+    const expanded = expandHomePath(value);
+    if (!expanded) {
+      return;
+    }
+    roots.add(path.isAbsolute(expanded) ? expanded : path.resolve(expanded));
+  };
+
+  const nativeDir = config.nativeModulePath
+    ? path.dirname(config.nativeModulePath)
+    : path.join(process.cwd(), 'native', 'codex-napi');
+
+  return [
+    path.join(nativeDir, '..', 'Cargo.toml'),
+    path.join(nativeDir, '..', 'codex-rs', 'Cargo.toml'),
+  ];
 }
 
-export interface ShutdownCompleteEventMessage extends CodexEventMessage {
-  type: 'shutdown_complete';
-}
-
-export interface TurnContextEventMessage extends CodexEventMessage {
-  type: 'turn_context';
-  cwd: string;
-  approval_policy: AskForApproval;
-  sandbox_policy: SandboxPolicy;
-  model: string;
-  effort?: ReasoningEffort | null;
-  summary: ReasoningSummary;
-}
-
-export interface HistoryEntryEvent {
-  conversation_id: string;
-  ts: number;
-  text: string;
-}
-
-export interface GetHistoryEntryResponseEventMessage extends CodexEventMessage {
-  type: 'get_history_entry_response';
-  offset: number;
-  log_id: number;
-  entry?: HistoryEntryEvent;
-}
-
-export type McpToolDefinition = Record<string, unknown>;
-
-export interface McpListToolsResponseEventMessage extends CodexEventMessage {
-  type: 'mcp_list_tools_response';
-  tools: Record<string, McpToolDefinition>;
-}
-
-export interface CustomPromptDefinition {
-  name: string;
-  path: string;
-  content: string;
-}
-
-export interface ListCustomPromptsResponseEventMessage extends CodexEventMessage {
-  type: 'list_custom_prompts_response';
-  custom_prompts: CustomPromptDefinition[];
-}
-
-export interface ReviewLineRange {
-  start: number;
-  end: number;
-}
-
-export interface ReviewCodeLocation {
-  absolute_file_path: string;
-  line_range: ReviewLineRange;
-}
-
-export interface ReviewFinding {
-  title: string;
-  body: string;
-  confidence_score: number;
-  priority: number;
-  code_location: ReviewCodeLocation;
-}
-
-export interface ReviewOutputEventMessage {
-  findings: ReviewFinding[];
-  overall_correctness: string;
-  overall_explanation: string;
-  overall_confidence_score: number;
-}
-
-export interface EnteredReviewModeEventMessage extends ReviewRequest, CodexEventMessage {
-  type: 'entered_review_mode';
-}
-
-export interface ExitedReviewModeEventMessage extends CodexEventMessage {
-  type: 'exited_review_mode';
-  review_output?: ReviewOutputEventMessage;
-}
+// No additional fallbacks – the native module must expose the correct version.
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

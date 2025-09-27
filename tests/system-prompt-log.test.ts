@@ -12,7 +12,7 @@ describe.skip('System Prompt Logging', () => {
       fullSystemPrompt = readFileSync('/Users/greg/Dev/git/codex/codex-rs/core/prompt.md', 'utf-8');
     } catch (e) {
       console.log('Note: Could not read the actual prompt file. Using sample text.');
-      fullSystemPrompt = `You are a coding agent running in the Codex CLI, a terminal-based coding assistant. Codex CLI is an open source project led by OpenAI. You are expected to be precise, safe, and helpful.
+      fullSystemPrompt = `You are a coding agent running in the Codex SDK, a terminal-based coding assistant. Codex SDK is an open source project led by OpenAI. You are expected to be precise, safe, and helpful.
 
 [Full prompt continues - see /Users/greg/Dev/git/codex/codex-rs/core/prompt.md]`;
     }

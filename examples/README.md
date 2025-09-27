@@ -16,7 +16,7 @@ These scripts demonstrate a live connection to Codex using the native Node bindi
 - `error-handling.js` – prints a short answer about error-handling practices and demonstrates per-error-class logging.
 - `live-smoke.js` – tiny 1+1 sanity check that prints the first agent reply.
 
-Each script sets `CODEX_NATIVE_MODULE` automatically to `native/codex-napi/index.node` if you haven’t overridden it.
+The SDK automatically discovers the freshly built `native/codex-napi` binding, so no additional environment configuration is required before running the examples.
 
 Run any script with Node:
 

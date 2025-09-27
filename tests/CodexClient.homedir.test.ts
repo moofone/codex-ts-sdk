@@ -6,6 +6,8 @@ type ResolveCodexHome = () => string | undefined;
 async function resolveConfiguredHome(input: string, homedir?: string): Promise<string | undefined> {
   vi.resetModules();
   let mocked = false;
+  const originalSkipCheck = process.env.CODEX_SKIP_VERSION_CHECK;
+  process.env.CODEX_SKIP_VERSION_CHECK = '1';
   if (homedir !== undefined) {
     mocked = true;
     vi.doMock('os', async () => {
@@ -26,6 +28,11 @@ async function resolveConfiguredHome(input: string, homedir?: string): Promise<s
   } finally {
     if (mocked) {
       vi.doUnmock('os');
+    }
+    if (originalSkipCheck === undefined) {
+      delete process.env.CODEX_SKIP_VERSION_CHECK;
+    } else {
+      process.env.CODEX_SKIP_VERSION_CHECK = originalSkipCheck;
     }
   }
 }

@@ -78,6 +78,7 @@
     "lint": "eslint src --ext .ts",
     "test": "vitest run",
     "test:watch": "vitest watch",
+    "test:live:status": "node --enable-source-maps scripts/run-live-status.mjs",
     "coverage": "vitest run --coverage",
     "build:native": "napi build --platform --manifest-path native/codex-napi/Cargo.toml",
     "package": "npm run build && npm run build:native",

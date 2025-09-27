@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const delaySpy = vi.hoisted(() => vi.fn<Promise<void>, [number?]>(() => Promise.resolve()));
+const delaySpy = vi.hoisted(() => vi.fn<(ms?: number) => Promise<void>>());
 
 vi.mock('timers/promises', () => ({
   setTimeout: delaySpy,
@@ -10,7 +10,8 @@ import { withRetry } from '../../src/utils/retry';
 
 describe('withRetry', () => {
   beforeEach(() => {
-    delaySpy.mockClear();
+    delaySpy.mockReset();
+    delaySpy.mockImplementation(() => Promise.resolve());
   });
 
   it('returns immediately on success', async () => {

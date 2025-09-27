@@ -83,15 +83,18 @@ describe('loginWithApiKey', () => {
     const dir = createTempCodexHome();
     tempHomes.push(dir);
 
+    const writeFileMock = vi.fn<typeof fs.writeFileSync>();
+    writeFileMock.mockImplementation(() => undefined);
+
     const mockedFs = {
       existsSync: fs.existsSync,
-      writeFileSync: vi.fn(() => undefined),
+      writeFileSync: writeFileMock,
     };
 
     loginWithApiKey(' sk-mock ', { codexHome: dir, fs: mockedFs });
 
-    expect(mockedFs.writeFileSync).toHaveBeenCalledTimes(1);
-    const [authPath, payload, options] = mockedFs.writeFileSync.mock.calls[0];
+    expect(writeFileMock).toHaveBeenCalledTimes(1);
+    const [authPath, payload, options] = writeFileMock.mock.calls[0]!;
     expect(authPath).toBe(path.join(dir, 'auth.json'));
     expect(payload).toBe(
       `${JSON.stringify({ openai_api_key: 'sk-mock', tokens: null, last_refresh: null }, null, 2)}\n`,

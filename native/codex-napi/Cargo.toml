@@ -13,8 +13,8 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.9"
-codex-core = { git = "https://github.com/openai/codex", package = "codex-core", rev = "5332f6e2156e83a2dcd654a98a72696aa455f750" }
-codex-protocol = { git = "https://github.com/openai/codex", package = "codex-protocol", rev = "5332f6e2156e83a2dcd654a98a72696aa455f750" }
+codex-core = { path = "/Users/greg/Dev/git/codex/codex-rs/core" }
+codex-protocol = { path = "/Users/greg/Dev/git/codex/codex-rs/protocol" }
 
 [build-dependencies]
 napi-build = "2"
