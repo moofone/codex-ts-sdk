@@ -60,13 +60,11 @@ for await (const event of client.events()) {
 
 ## Live Rate Limit Monitor
 
-Monitor your OpenAI API rate limits with visual ASCII charts and usage projections:
+Simple Bundled Example: Monitor your Plan-Based Codex rate limits with visual ASCII charts and usage projections:
 
 ```bash
 node examples/live-rate-limits.cjs
 ```
-
-Example output (colors stripped for readability):
 
 ```text
 Connecting and fetching live data...
@@ -82,17 +80,6 @@ Secondary (gpt-4.1-mini per-day):
   [███████████████████████████!-----------·······················] 83%
   Projected 100%: 2025-09-26 19:07
 ```
-
-The monitor shows:
-- **Visual progress bars** with current usage in color-coded blocks
-- **Projection visualization** using dashes to show projected usage and `!` to mark when limits will be hit
-- **Daily usage rates** for weekly limits with linear regression analysis
-- **24-hour time format** and clean, compact display
-
-Color coding:
-- **Green**: Safe usage levels
-- **Yellow**: Warning - will hit limit but more than 24 hours away
-- **Red**: Critical - will hit limit within 24 hours
 
 ### Authentication helpers
 
