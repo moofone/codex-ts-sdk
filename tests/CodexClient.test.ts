@@ -48,6 +48,7 @@ vi.mock('../src/internal/nativeModule', async () => {
 });
 
 import { CodexClient } from '../src/client/CodexClient';
+import { CodexTimeoutError } from '../src/errors/CodexError';
 import type { CodexClientConfig, ReviewRequestInput } from '../src/types/options';
 import type { SandboxPolicy } from '../src/bindings/SandboxPolicy';
 
@@ -938,6 +939,43 @@ describe('CodexClient', () => {
 
     const available = await client.testModelAvailability('codex');
     expect(available).toBe(true);
+  });
+
+  it('rejects when createConversation exceeds configured timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      createConversationMock.mockImplementation(() => new Promise(() => {}));
+      const client = createClient({ timeoutMs: 1000 });
+
+      const creation = client.createConversation();
+      creation.catch(() => undefined);
+      await vi.advanceTimersByTimeAsync(1000);
+
+      await expect(creation).rejects.toBeInstanceOf(CodexTimeoutError);
+      await client.close().catch(() => undefined);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('rejects submissions that exceed configured timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      nextEventMock.mockResolvedValueOnce(null);
+      const client = createClient({ timeoutMs: 1000 });
+      await client.createConversation();
+
+      submitMock.mockImplementation(() => new Promise(() => {}));
+
+      const submission = client.sendUserTurn('slow op');
+      submission.catch(() => undefined);
+      await vi.advanceTimersByTimeAsync(1000);
+
+      await expect(submission).rejects.toBeInstanceOf(CodexTimeoutError);
+      await client.close().catch(() => undefined);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('responds to patch approval requests with the correct payload', async () => {

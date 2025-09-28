@@ -10,5 +10,6 @@ describe('package entry point', () => {
     expect(typeof sdk.resolveModelVariant).toBe('function');
     expect(typeof sdk.getSupportedEfforts).toBe('function');
     expect(sdk.CodexError).toBeDefined();
+    expect(sdk.CodexTimeoutError).toBeDefined();
   });
 });

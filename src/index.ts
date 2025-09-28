@@ -58,7 +58,13 @@ export type {
   ReviewDecision,
 } from './bindings';
 
-export { CodexError, CodexAuthError, CodexConnectionError, CodexSessionError } from './errors/CodexError';
+export {
+  CodexError,
+  CodexAuthError,
+  CodexConnectionError,
+  CodexSessionError,
+  CodexTimeoutError,
+} from './errors/CodexError';
 export type { CodexPlugin, CodexPluginInitializeContext } from './plugins/types';
 
 export { resolveModelVariant, getSupportedEfforts } from './utils/models';

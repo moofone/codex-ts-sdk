@@ -27,3 +27,9 @@ export class CodexSessionError extends CodexError {
     super(message, 'SESSION', details);
   }
 }
+
+export class CodexTimeoutError extends CodexError {
+  constructor(message: string, details?: unknown) {
+    super(message, 'TIMEOUT', details);
+  }
+}

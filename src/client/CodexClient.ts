@@ -65,7 +65,12 @@ import {
   formatOverrides,
 } from '../internal/nativeModule';
 import { AsyncEventQueue } from '../internal/AsyncEventQueue';
-import { CodexConnectionError, CodexError, CodexSessionError } from '../errors/CodexError';
+import {
+  CodexConnectionError,
+  CodexError,
+  CodexSessionError,
+  CodexTimeoutError,
+} from '../errors/CodexError';
 import type { PartialCodexLogger } from '../utils/logger';
 import { log } from '../utils/logger';
 import { withRetry } from '../utils/retry';
@@ -200,9 +205,20 @@ export class CodexClient extends EventEmitter {
     this.statusStore.clear();
 
     const overrides = formatOverrides(options.overrides);
+    const creationPromise = this.native.createConversation(overrides ? { overrides } : undefined);
     try {
-      this.session = await this.native.createConversation(overrides ? { overrides } : undefined);
+      this.session = await this.withTimeout(
+        creationPromise,
+        'Timed out while creating Codex conversation',
+        {
+          overrides: options.overrides,
+          timeoutMs: this.config.timeoutMs,
+        },
+      );
     } catch (error) {
+      if (error instanceof CodexTimeoutError) {
+        throw error;
+      }
       throw this.wrapSessionError('Failed to create Codex conversation', error, options.overrides);
     }
 
@@ -547,9 +563,17 @@ export class CodexClient extends EventEmitter {
 
   private async submit(session: CodexSessionHandle, submission: SubmissionEnvelope): Promise<void> {
     const processed = await this.applyBeforeSubmit(submission);
+    const serialized = JSON.stringify(processed);
+    const submissionPromise = session.submit(serialized);
     try {
-      await session.submit(JSON.stringify(processed));
+      await this.withTimeout(submissionPromise, 'Timed out while submitting request to Codex session', {
+        submission: processed,
+        timeoutMs: this.config.timeoutMs,
+      });
     } catch (error) {
+      if (error instanceof CodexTimeoutError) {
+        throw error;
+      }
       throw this.wrapSessionError('Failed to submit request to Codex session', error, processed);
     }
   }
@@ -978,6 +1002,26 @@ export class CodexClient extends EventEmitter {
       throw new CodexSessionError('No active Codex session. Call createConversation first.');
     }
     return this.session;
+  }
+
+  private async withTimeout<T>(promise: Promise<T>, message: string, details?: unknown): Promise<T> {
+    const timeoutMs = this.config.timeoutMs;
+    if (timeoutMs === undefined || timeoutMs <= 0) {
+      return promise;
+    }
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new CodexTimeoutError(message, details)), timeoutMs);
+    });
+
+    try {
+      return await Promise.race([promise, timeoutPromise]);
+    } finally {
+      if (timer !== undefined) {
+        clearTimeout(timer);
+      }
+    }
   }
 
   private async initializePlugins(): Promise<void> {
