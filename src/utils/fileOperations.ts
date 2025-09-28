@@ -1,19 +1,121 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync } from 'fs';
+import { promises as fs } from 'fs';
 import { dirname, resolve } from 'path';
-import type { RolloutData, RolloutFileHeader } from '../types/rollout';
+import type { CodexEvent, CodexEventMessage } from '../types/events';
+import type {
+  RolloutData,
+  RolloutEventEntry,
+  RolloutFileHeader,
+  SessionMetadata,
+} from '../types/rollout';
 import { RolloutParseError, RolloutFileError } from '../types/rollout';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function parseSessionMetadataValue(
+  value: unknown,
+  filePath: string,
+  lineNumber?: number
+): SessionMetadata {
+  if (!isRecord(value)) {
+    throw new RolloutParseError('Session metadata must be an object', filePath, lineNumber);
+  }
+
+  const { id, timestamp, cwd, originator, cliVersion, instructions } = value;
+  if (
+    typeof id !== 'string' ||
+    typeof timestamp !== 'string' ||
+    typeof cwd !== 'string' ||
+    typeof originator !== 'string' ||
+    typeof cliVersion !== 'string'
+  ) {
+    throw new RolloutParseError('Session metadata is missing required fields', filePath, lineNumber);
+  }
+
+  const session: SessionMetadata = {
+    id,
+    timestamp,
+    cwd,
+    originator,
+    cliVersion,
+  };
+
+  if (instructions !== undefined) {
+    if (typeof instructions !== 'string') {
+      throw new RolloutParseError('Session instructions must be a string', filePath, lineNumber);
+    }
+    session.instructions = instructions;
+  }
+
+  return session;
+}
+
+function parseCodexEventValue(
+  value: unknown,
+  filePath: string,
+  lineNumber: number
+): CodexEvent {
+  if (!isRecord(value)) {
+    throw new RolloutParseError('Event payload must be an object', filePath, lineNumber);
+  }
+
+  const { id, msg, ...rest } = value;
+  if (typeof id !== 'string') {
+    throw new RolloutParseError('Event payload is missing id', filePath, lineNumber);
+  }
+  if (!isRecord(msg) || typeof (msg as CodexEventMessage).type !== 'string') {
+    throw new RolloutParseError('Event payload message is invalid', filePath, lineNumber);
+  }
+
+  const codexEvent: CodexEvent = {
+    id,
+    msg: msg as CodexEventMessage,
+    ...rest,
+  } as CodexEvent;
+
+  return codexEvent;
+}
+
+function parseRolloutEventEntryValue(
+  value: unknown,
+  filePath: string,
+  lineNumber: number
+): RolloutEventEntry {
+  if (!isRecord(value)) {
+    throw new RolloutParseError('Rollout event must be an object', filePath, lineNumber);
+  }
+
+  const { timestamp, payload, metadata } = value;
+  if (typeof timestamp !== 'string') {
+    throw new RolloutParseError('Rollout event is missing timestamp', filePath, lineNumber);
+  }
+
+  const codexEvent = parseCodexEventValue(payload, filePath, lineNumber);
+
+  let metadataRecord: Record<string, unknown> | undefined;
+  if (metadata !== undefined) {
+    if (!isRecord(metadata)) {
+      throw new RolloutParseError('Rollout event metadata must be an object', filePath, lineNumber);
+    }
+    metadataRecord = metadata;
+  }
+
+  return {
+    timestamp,
+    payload: codexEvent,
+    metadata: metadataRecord,
+  };
+}
 
 /**
  * Read and parse a rollout file (JSONL or JSON format)
  */
 export async function readRolloutFile(filePath: string): Promise<RolloutData> {
   try {
-    if (!existsSync(filePath)) {
-      throw new RolloutFileError(`File not found: ${filePath}`, filePath, 'read');
-    }
-
-    const content = readFileSync(filePath, 'utf-8');
     const resolvedPath = resolve(filePath);
+    const content = await fs.readFile(resolvedPath, 'utf-8');
 
     // Determine format by file extension or content
     const isJsonl = filePath.endsWith('.jsonl') || content.includes('\n{');
@@ -24,6 +126,9 @@ export async function readRolloutFile(filePath: string): Promise<RolloutData> {
       return parseJsonRollout(content, resolvedPath);
     }
   } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') {
+      throw new RolloutFileError(`File not found: ${filePath}`, filePath, 'read');
+    }
     if (error instanceof RolloutFileError || error instanceof RolloutParseError) {
       throw error;
     }
@@ -47,9 +152,7 @@ export async function writeRolloutFile(
   try {
     // Ensure directory exists
     const dir = dirname(filePath);
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
-    }
+    await fs.mkdir(dir, { recursive: true });
 
     let content: string;
 
@@ -59,7 +162,7 @@ export async function writeRolloutFile(
       content = formatAsJson(data, prettyPrint);
     }
 
-    writeFileSync(filePath, content, 'utf-8');
+    await fs.writeFile(filePath, content, 'utf-8');
   } catch (error) {
     throw new RolloutFileError(
       `Failed to write rollout file: ${error instanceof Error ? error.message : String(error)}`,
@@ -81,19 +184,19 @@ function parseJsonlRollout(content: string, filePath: string): RolloutData {
 
   try {
     // First line should be session metadata
-    const sessionLine = JSON.parse(lines[0]);
-
-    if (!sessionLine.session) {
+    const sessionContainer: unknown = JSON.parse(lines[0]);
+    if (!isRecord(sessionContainer) || !('session' in sessionContainer)) {
       throw new RolloutParseError('First line must contain session metadata', filePath, 1);
     }
 
-    const session = sessionLine.session;
-    const events = [];
+    const session = parseSessionMetadataValue(sessionContainer.session, filePath, 1);
+    const events: RolloutEventEntry[] = [];
 
     // Parse remaining lines as events
     for (let i = 1; i < lines.length; i++) {
       try {
-        const eventEntry = JSON.parse(lines[i]);
+        const parsedEvent: unknown = JSON.parse(lines[i]);
+        const eventEntry = parseRolloutEventEntryValue(parsedEvent, filePath, i + 1);
         events.push(eventEntry);
       } catch (error) {
         throw new RolloutParseError(
@@ -121,13 +224,23 @@ function parseJsonlRollout(content: string, filePath: string): RolloutData {
  */
 function parseJsonRollout(content: string, filePath: string): RolloutData {
   try {
-    const parsed = JSON.parse(content);
+    const parsed: unknown = JSON.parse(content);
 
-    if (!parsed.session || !parsed.events) {
-      throw new RolloutParseError('JSON rollout must have session and events properties', filePath);
+    if (!isRecord(parsed)) {
+      throw new RolloutParseError('Rollout file must be a JSON object', filePath);
     }
 
-    return parsed as RolloutData;
+    const session = parseSessionMetadataValue(parsed.session, filePath);
+
+    if (!Array.isArray(parsed.events)) {
+      throw new RolloutParseError('Rollout events must be an array', filePath);
+    }
+
+    const events = parsed.events.map((eventValue, index) =>
+      parseRolloutEventEntryValue(eventValue, filePath, index + 1)
+    );
+
+    return { session, events };
   } catch (error) {
     if (error instanceof RolloutParseError) {
       throw error;
@@ -187,7 +300,12 @@ export function validateRolloutFile(filePath: string): { isValid: boolean; error
 
     // Try to parse the file
     try {
-      readRolloutFile(filePath);
+      const isJsonl = filePath.endsWith('.jsonl') || content.includes('\n{');
+      if (isJsonl) {
+        parseJsonlRollout(content, filePath);
+      } else {
+        parseJsonRollout(content, filePath);
+      }
     } catch (error) {
       if (error instanceof RolloutParseError) {
         errors.push(error.message);
@@ -220,28 +338,30 @@ export function extractSessionMetadata(filePath: string): RolloutFileHeader | nu
 
     // Try first line (JSONL format)
     try {
-      const firstLine = JSON.parse(lines[0]);
-      if (firstLine.session) {
+      const firstLine: unknown = JSON.parse(lines[0]);
+      if (isRecord(firstLine) && 'session' in firstLine) {
+        const session = parseSessionMetadataValue(firstLine.session, filePath, 1);
         const eventCount = lines.filter(line => line.trim().length > 0).length - 1;
         return {
           version: '1.0',
           format: 'jsonl',
-          session: firstLine.session,
-          createdAt: firstLine.session.timestamp || new Date().toISOString(),
+          session,
+          createdAt: session.timestamp,
           eventCount,
         };
       }
     } catch {
       // Try JSON format
       try {
-        const parsed = JSON.parse(content);
-        if (parsed.session) {
+        const parsed: unknown = JSON.parse(content);
+        if (isRecord(parsed) && 'session' in parsed) {
+          const session = parseSessionMetadataValue(parsed.session, filePath);
           return {
             version: '1.0',
             format: 'json',
-            session: parsed.session,
-            createdAt: parsed.session.timestamp || new Date().toISOString(),
-            eventCount: parsed.events?.length || 0,
+            session,
+            createdAt: session.timestamp,
+            eventCount: Array.isArray(parsed.events) ? parsed.events.length : 0,
           };
         }
       } catch {

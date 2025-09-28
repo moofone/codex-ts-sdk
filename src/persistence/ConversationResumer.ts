@@ -16,7 +16,6 @@ import {
   ResumptionError,
   ResumptionTimeoutError,
   SIDE_EFFECT_EVENT_TYPES,
-  SAFE_REPLAY_EVENT_TYPES,
 } from '../types/resumption';
 import type { RolloutData, RolloutEventEntry } from '../types/rollout';
 
@@ -195,7 +194,7 @@ export class ConversationResumer extends EventEmitter {
   /**
    * Validate rollout data structure and content
    */
-  async validateRolloutData(
+  validateRolloutData(
     rolloutData: RolloutData,
     options: Required<ResumptionOptions>
   ): Promise<ValidationResult> {
@@ -318,7 +317,7 @@ export class ConversationResumer extends EventEmitter {
       eventCount: result.eventCount,
     });
 
-    return result;
+    return Promise.resolve(result);
   }
 
   /**
@@ -375,7 +374,7 @@ export class ConversationResumer extends EventEmitter {
    * Check if an event is a side-effect event
    */
   private isSideEffectEvent(event: CodexEvent): boolean {
-    return SIDE_EFFECT_EVENT_TYPES.includes(event.msg.type as any);
+    return (SIDE_EFFECT_EVENT_TYPES as readonly string[]).includes(event.msg.type);
   }
 
   /**
@@ -386,7 +385,6 @@ export class ConversationResumer extends EventEmitter {
     events: RolloutEventEntry[],
     options: Required<ResumptionOptions>
   ): Promise<{ successCount: number; failureCount: number }> {
-    const startTime = Date.now();
     let successCount = 0;
     let failureCount = 0;
 
@@ -475,8 +473,8 @@ export class ConversationResumer extends EventEmitter {
   /**
    * Replay a single event
    */
-  private async replayEvent(
-    client: CodexClient,
+  private replayEvent(
+    _client: CodexClient,
     eventEntry: RolloutEventEntry,
     index: number,
     options: Required<ResumptionOptions>
@@ -513,6 +511,7 @@ export class ConversationResumer extends EventEmitter {
           eventIndex: index,
         });
     }
+    return Promise.resolve();
   }
 
   /**

@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { writeFileSync, appendFileSync, existsSync } from 'fs';
+import { writeFileSync, appendFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import type { CodexClient } from '../client/CodexClient';
 import type { CodexEvent } from '../types/events';
@@ -26,21 +26,6 @@ function log(
 ): void {
   if (logger && logger[level]) {
     logger[level]!(message, meta);
-  }
-}
-
-function clearMockHistory(fn: unknown): void {
-  if (typeof fn === 'function') {
-    const mockFn = fn as { mockClear?: () => void; mock?: { clear?: () => void } };
-    if (typeof mockFn.mockClear === 'function') {
-      mockFn.mockClear();
-      return;
-    }
-
-    const mock = mockFn.mock;
-    if (mock?.clear) {
-      mock.clear();
-    }
   }
 }
 
@@ -382,7 +367,6 @@ export class RolloutRecorder extends EventEmitter {
   private cleanup(): void {
     if (this.client) {
       this.client.off('event', this.handleEvent);
-      clearMockHistory(this.client.on);
       this.client = null;
     }
 

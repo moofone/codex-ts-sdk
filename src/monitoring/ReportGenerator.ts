@@ -52,7 +52,7 @@ export class RateLimitReportGenerator {
 
     const chartData = this.prepareChartData(dataPoints);
     const summarySection = this.generateSummarySection(analysis);
-    const chartSection = this.generateChartSection(chartHeight, theme);
+    const chartSection = this.generateChartSection(chartHeight);
     const statisticsSection = this.generateStatisticsSection(analysis);
     const rawDataSection = includeRawData ? this.generateRawDataSection(dataPoints) : '';
 
@@ -86,7 +86,7 @@ export class RateLimitReportGenerator {
     </div>
 
     <script>
-        ${this.getChartScript(chartData, analysis, theme)}
+        ${this.getChartScript(chartData, theme)}
     </script>
 </body>
 </html>`;
@@ -140,7 +140,7 @@ export class RateLimitReportGenerator {
   /**
    * Generate chart section HTML
    */
-  private generateChartSection(height: number, theme: Theme): string {
+  private generateChartSection(height: number): string {
     return `
         <section class="charts">
             <h2>Usage Trends</h2>
@@ -553,7 +553,7 @@ export class RateLimitReportGenerator {
   /**
    * Get JavaScript for Chart.js
    */
-  private getChartScript(chartData: ChartDataSet, analysis: AnalysisResult, theme: Theme): string {
+  private getChartScript(chartData: ChartDataSet, theme: Theme): string {
     const isDark = theme === 'dark';
     const colors = isDark ? {
       primary: '#4fc3f7',

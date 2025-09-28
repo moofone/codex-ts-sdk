@@ -133,7 +133,7 @@ export class ConversationManager extends EventEmitter {
   getConversation(conversationId: string): Promise<CodexClient> {
     const conversationInfo = this.conversations.get(conversationId);
     if (!conversationInfo) {
-      throw new ConversationNotFoundError(conversationId);
+      return Promise.reject(new ConversationNotFoundError(conversationId));
     }
 
     log(this.config.logger, 'debug', 'Conversation retrieved', {
