@@ -1,5 +1,5 @@
 import type { CodexEvent } from './events';
-import type { RolloutData, RolloutEventEntry } from './rollout';
+import type { RolloutData } from './rollout';
 
 /**
  * Result of a conversation resumption operation

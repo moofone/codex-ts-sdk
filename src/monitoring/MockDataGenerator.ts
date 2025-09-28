@@ -96,7 +96,7 @@ export class MockDataGenerator {
     this.rng = new SeededRNG(this.config.seed);
   }
 
-  async generateMockData(request: MockDataRequest): Promise<WebsiteExportFormat> {
+  generateMockData(request: MockDataRequest): WebsiteExportFormat {
     const duration = request.duration ?? this.config.defaultDuration;
     const interval = request.interval ?? this.config.defaultInterval;
     const pointCount = Math.max(1, Math.floor(duration / interval) || 1);
@@ -202,7 +202,7 @@ export class MockDataGenerator {
   }
 
   async generateWebsiteData(request: MockDataRequest & { outputPath?: string }): Promise<WebsiteDataResult> {
-    const exportData = await this.generateMockData(request);
+    const exportData = this.generateMockData(request);
 
     const defaultPath = `./mock-monitoring-data-${request.scenario ?? 'normal'}.json`;
     const targetPath = resolve(request.outputPath ?? defaultPath);

@@ -23,7 +23,7 @@ export class SessionSerializer {
     this.customOriginatorDetector = config.detectOriginator;
   }
 
-  async createSessionMetadata(overrides: MetadataOverrides = {} as MetadataOverrides): Promise<SessionMetadata & Record<string, unknown>> {
+  createSessionMetadata(overrides: MetadataOverrides = {} as MetadataOverrides): Promise<SessionMetadata & Record<string, unknown>> {
     const id = this.safeGenerateId();
     const timestamp = new Date().toISOString();
     const cwd = this.safeGetCwd(overrides.cwd);
@@ -44,7 +44,7 @@ export class SessionSerializer {
     const overrideOriginator = isNonEmptyString(overrides.originator) ? overrides.originator.trim() : originator;
     const overrideCliVersion = isNonEmptyString(overrides.cliVersion) ? overrides.cliVersion : cliVersion;
 
-    return {
+    const metadataWithOverrides = {
       ...metadata,
       ...overrides,
       id: overrideId,
@@ -53,6 +53,8 @@ export class SessionSerializer {
       originator: overrideOriginator,
       cliVersion: overrideCliVersion,
     };
+
+    return Promise.resolve(metadataWithOverrides);
   }
 
   detectOriginator(): string {
@@ -62,7 +64,7 @@ export class SessionSerializer {
         if (isNonEmptyString(value)) {
           return value;
         }
-      } catch (error) {
+      } catch {
         // Fall back to default logic when custom detectors fail.
       }
     }
@@ -79,7 +81,7 @@ export class SessionSerializer {
       }
 
       return UNKNOWN_VALUE;
-    } catch (error) {
+    } catch {
       return UNKNOWN_VALUE;
     }
   }
@@ -93,13 +95,9 @@ export class SessionSerializer {
   }
 
   deserializeMetadata(json: string): SessionMetadata {
-    const parsed = JSON.parse(json);
-    const requiredFields: Array<keyof SessionMetadata> = ['id', 'timestamp', 'cwd', 'originator', 'cliVersion'];
-
-    for (const field of requiredFields) {
-      if (typeof parsed[field] !== 'string') {
-        throw new Error(`Missing required field: ${field}`);
-      }
+    const parsed: unknown = JSON.parse(json);
+    if (!this.validateMetadata(parsed)) {
+      throw new Error('Invalid session metadata received during deserialization');
     }
 
     return parsed;
@@ -160,7 +158,7 @@ export class SessionSerializer {
         if (isNonEmptyString(customId)) {
           return customId;
         }
-      } catch (error) {
+      } catch {
         // Swallow and fall back to default implementation
       }
     }
@@ -180,7 +178,7 @@ export class SessionSerializer {
     try {
       const version = getCodexCliVersion();
       return isNonEmptyString(version) ? version : UNKNOWN_VALUE;
-    } catch (error) {
+    } catch {
       return UNKNOWN_VALUE;
     }
   }
@@ -192,7 +190,7 @@ export class SessionSerializer {
 
     try {
       return resolve(process.cwd());
-    } catch (error) {
+    } catch {
       return UNKNOWN_VALUE;
     }
   }
@@ -207,7 +205,7 @@ function safeEnvAccess(key: string): string | undefined {
     const env = process.env;
     cachedEnv = env ?? cachedEnv;
     return env?.[key];
-  } catch (error) {
+  } catch {
     if (cachedEnv) {
       try {
         Object.defineProperty(process, 'env', {
@@ -215,7 +213,7 @@ function safeEnvAccess(key: string): string | undefined {
           configurable: true,
           writable: true,
         });
-      } catch (restoreError) {
+      } catch {
         // Swallow restoration errors to preserve fallback behaviour.
       }
     }

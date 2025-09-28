@@ -1,5 +1,3 @@
-import type { DataPoint } from '../types/monitoring';
-
 // Mock scenario data point interface for analyzer
 interface MockDataPoint {
   timestamp: number;
@@ -100,8 +98,8 @@ export class RateLimitAnalyzer {
     const timestamps = sortedPoints.map(p => p.timestamp);
 
     // Analyze each window
-    const primary = this.analyzeWindow(primaryUsage, timestamps, 'primary');
-    const secondary = this.analyzeWindow(secondaryUsage, timestamps, 'secondary');
+    const primary = this.analyzeWindow(primaryUsage, timestamps);
+    const secondary = this.analyzeWindow(secondaryUsage, timestamps);
 
     // Generate summary
     const summary = this.generateSummary(primary, secondary);
@@ -117,7 +115,7 @@ export class RateLimitAnalyzer {
   /**
    * Analyze a single rate limit window
    */
-  private analyzeWindow(usage: number[], timestamps: number[], windowType: string): WindowAnalysis {
+  private analyzeWindow(usage: number[], timestamps: number[]): WindowAnalysis {
     const current = usage[usage.length - 1] || 0;
     const average = usage.reduce((sum, val) => sum + val, 0) / usage.length;
     const minimum = Math.min(...usage);

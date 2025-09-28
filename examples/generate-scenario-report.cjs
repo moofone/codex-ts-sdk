@@ -479,6 +479,7 @@ function generateHtml(dataPoints, analysis) {
     <section>
       <div class="title-container">
         <h2>Codex Usage</h2>
+        <p style="font-size: 0.75rem; color: #1f1f1f; margin-top: -0.5rem;">Plan: Pro</p>
         <span class="plan-label">Pro</span>
       </div>
       <div class="chart-wrapper">

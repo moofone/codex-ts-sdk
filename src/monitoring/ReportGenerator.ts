@@ -1,5 +1,4 @@
-import type { DataPoint } from '../types/monitoring';
-import type { AnalysisResult } from './RateLimitAnalyzer';
+import type { AnalysisResult, ProjectionAnalysis } from './RateLimitAnalyzer';
 
 // Mock scenario data point interface for reports
 interface MockDataPoint {
@@ -20,6 +19,16 @@ export interface ReportOptions {
   theme?: 'light' | 'dark';
   includeRawData?: boolean;
   chartHeight?: number;
+}
+
+type Theme = 'light' | 'dark';
+
+interface ChartDataSet {
+  labels: string[];
+  timestamps: number[];
+  primary: number[];
+  secondary: number[];
+  queryLatency: number[];
 }
 
 /**
@@ -43,7 +52,7 @@ export class RateLimitReportGenerator {
 
     const chartData = this.prepareChartData(dataPoints);
     const summarySection = this.generateSummarySection(analysis);
-    const chartSection = this.generateChartSection(chartData, analysis, chartHeight, theme);
+    const chartSection = this.generateChartSection(chartHeight, theme);
     const statisticsSection = this.generateStatisticsSection(analysis);
     const rawDataSection = includeRawData ? this.generateRawDataSection(dataPoints) : '';
 
@@ -86,7 +95,7 @@ export class RateLimitReportGenerator {
   /**
    * Prepare data for Chart.js visualization
    */
-  private prepareChartData(dataPoints: MockDataPoint[]) {
+  private prepareChartData(dataPoints: MockDataPoint[]): ChartDataSet {
     const sortedPoints = [...dataPoints].sort((a, b) => a.timestamp - b.timestamp);
 
     return {
@@ -131,7 +140,7 @@ export class RateLimitReportGenerator {
   /**
    * Generate chart section HTML
    */
-  private generateChartSection(chartData: any, analysis: AnalysisResult, height: number, theme: string): string {
+  private generateChartSection(height: number, theme: Theme): string {
     return `
         <section class="charts">
             <h2>Usage Trends</h2>
@@ -157,7 +166,7 @@ export class RateLimitReportGenerator {
    * Generate statistics section HTML
    */
   private generateStatisticsSection(analysis: AnalysisResult): string {
-    const formatProjection = (projection: any) => {
+    const formatProjection = (projection?: ProjectionAnalysis) => {
       if (!projection?.exhaustionTime) return 'Not projected';
       const date = new Date(projection.exhaustionTime);
       const days = projection.daysUntilExhaustion?.toFixed(1) || '?';
@@ -296,7 +305,7 @@ export class RateLimitReportGenerator {
   /**
    * Get CSS styles for the report
    */
-  private getStyles(theme: string): string {
+  private getStyles(theme: Theme): string {
     const isDark = theme === 'dark';
     const colors = isDark ? {
       bg: '#1a1a1a',
@@ -544,7 +553,7 @@ export class RateLimitReportGenerator {
   /**
    * Get JavaScript for Chart.js
    */
-  private getChartScript(chartData: any, analysis: AnalysisResult, theme: string): string {
+  private getChartScript(chartData: ChartDataSet, analysis: AnalysisResult, theme: Theme): string {
     const isDark = theme === 'dark';
     const colors = isDark ? {
       primary: '#4fc3f7',
