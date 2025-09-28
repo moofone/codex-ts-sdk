@@ -30,131 +30,20 @@ jobs:
       - name: Run TypeScript check
         run: npm run typecheck
 
-      - name: Run linting and capture results
-        if: matrix.node-version == '18.x'
-        run: |
-          # Run linting and capture error count
-          LINT_OUTPUT=$(npm run lint 2>&1 || true)
-          LINT_ERRORS=$(echo "$LINT_OUTPUT" | grep -oP '\d+(?= problems)' | head -1 || echo "0")
-          echo "LINT_ERRORS=$LINT_ERRORS" >> $GITHUB_ENV
-          echo "Linting errors: $LINT_ERRORS"
-          # Still show full output for debugging
-          echo "$LINT_OUTPUT"
+      - name: Run linting
+        run: npm run lint
         continue-on-error: true
 
-      - name: Generate linting badge data
-        if: matrix.node-version == '18.x'
-        run: |
-          mkdir -p ./badges
-          if [ "$LINT_ERRORS" -eq 0 ]; then
-            COLOR="brightgreen"
-            MESSAGE="0 errors"
-          elif [ "$LINT_ERRORS" -lt 10 ]; then
-            COLOR="yellow"
-            MESSAGE="$LINT_ERRORS errors"
-          elif [ "$LINT_ERRORS" -lt 50 ]; then
-            COLOR="orange"
-            MESSAGE="$LINT_ERRORS errors"
-          else
-            COLOR="red"
-            MESSAGE="$LINT_ERRORS errors"
-          fi
-          echo "{\"schemaVersion\": 1, \"label\": \"lint\", \"message\": \"$MESSAGE\", \"color\": \"$COLOR\"}" > ./badges/lint-summary.json
-          cat ./badges/lint-summary.json
 
-      - name: Commit linting badge data
-        if: matrix.node-version == '18.x'
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add ./badges/lint-summary.json
-          git diff --staged --quiet || git commit -m "Update linting badge data [skip ci]"
-          git push
-
-      - name: Run tests and capture results
-        if: matrix.node-version == '18.x'
-        run: |
-          # Run tests and capture results
-          TEST_OUTPUT=$(npm test 2>&1 || true)
-          echo "$TEST_OUTPUT"
-
-          # Extract test statistics
-          PASSED_TESTS=$(echo "$TEST_OUTPUT" | grep -oP '\d+(?= passed)' | tail -1 || echo "0")
-          FAILED_TESTS=$(echo "$TEST_OUTPUT" | grep -oP '\d+(?= failed)' | tail -1 || echo "0")
-          TOTAL_TESTS=$((PASSED_TESTS + FAILED_TESTS))
-
-          if [ "$TOTAL_TESTS" -gt 0 ]; then
-            PASS_RATE=$((PASSED_TESTS * 100 / TOTAL_TESTS))
-          else
-            PASS_RATE=0
-          fi
-
-          echo "TEST_PASS_RATE=$PASS_RATE" >> $GITHUB_ENV
-          echo "PASSED_TESTS=$PASSED_TESTS" >> $GITHUB_ENV
-          echo "FAILED_TESTS=$FAILED_TESTS" >> $GITHUB_ENV
-          echo "TOTAL_TESTS=$TOTAL_TESTS" >> $GITHUB_ENV
-          echo "Test results: $PASSED_TESTS passed, $FAILED_TESTS failed ($PASS_RATE% pass rate)"
+      - name: Run tests
+        run: npm test
         continue-on-error: true
 
-      - name: Generate test results badge
-        if: matrix.node-version == '18.x'
-        run: |
-          mkdir -p ./badges
-          if [ "$FAILED_TESTS" -eq 0 ]; then
-            COLOR="brightgreen"
-            MESSAGE="$PASSED_TESTS/$TOTAL_TESTS passed"
-          elif [ "$TEST_PASS_RATE" -ge 90 ]; then
-            COLOR="green"
-            MESSAGE="$PASSED_TESTS/$TOTAL_TESTS passed"
-          elif [ "$TEST_PASS_RATE" -ge 75 ]; then
-            COLOR="yellow"
-            MESSAGE="$PASSED_TESTS/$TOTAL_TESTS passed"
-          elif [ "$TEST_PASS_RATE" -ge 50 ]; then
-            COLOR="orange"
-            MESSAGE="$PASSED_TESTS/$TOTAL_TESTS passed"
-          else
-            COLOR="red"
-            MESSAGE="$PASSED_TESTS/$TOTAL_TESTS passed"
-          fi
-          echo "{\"schemaVersion\": 1, \"label\": \"tests\", \"message\": \"$MESSAGE\", \"color\": \"$COLOR\"}" > ./badges/tests-summary.json
-          cat ./badges/tests-summary.json
-
-      - name: Commit test results badge
-        if: matrix.node-version == '18.x'
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add ./badges/tests-summary.json
-          git diff --staged --quiet || git commit -m "Update test results badge [skip ci]"
-          git push
 
       - name: Run tests with coverage
         run: npm run coverage
         continue-on-error: true
 
-      - name: Extract coverage percentage
-        if: matrix.node-version == '18.x'
-        run: |
-          # Extract coverage percentage from vitest output or coverage files
-          COVERAGE=$(npm run coverage 2>&1 | grep -oP 'All files.*?(\d+\.?\d*)%' | grep -oP '\d+\.?\d*' | tail -1 || echo "0")
-          echo "COVERAGE_PERCENT=$COVERAGE" >> $GITHUB_ENV
-          echo "Coverage: $COVERAGE%"
-
-      - name: Generate coverage badge data
-        if: matrix.node-version == '18.x'
-        run: |
-          mkdir -p ./coverage
-          echo "{\"schemaVersion\": 1, \"label\": \"coverage\", \"message\": \"${COVERAGE_PERCENT}%\", \"color\": \"brightgreen\"}" > ./coverage/coverage-summary.json
-          cat ./coverage/coverage-summary.json
-
-      - name: Commit coverage summary
-        if: matrix.node-version == '18.x'
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add ./coverage/coverage-summary.json
-          git diff --staged --quiet || git commit -m "Update coverage summary [skip ci]"
-          git push
 
   build:
     runs-on: ubuntu-latest

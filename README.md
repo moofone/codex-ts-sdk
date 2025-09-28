@@ -1,9 +1,7 @@
 # OpenAI Codex TypeScript SDK
 
 ![Node Version](https://img.shields.io/node/v/@flo-ai/codex-ts-sdk)
-![Tests](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/flo-ai/codex-ts-sdk/main/badges/tests-summary.json)
-![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/flo-ai/codex-ts-sdk/main/coverage/coverage-summary.json)
-![Lint](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/flo-ai/codex-ts-sdk/main/badges/lint-summary.json)
+![Tests](https://github.com/moofone/codex-ts-sdk/actions/workflows/test.yml/badge.svg)
 ![NPM Version](https://img.shields.io/npm/v/@flo-ai/codex-ts-sdk)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
