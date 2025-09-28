@@ -3,6 +3,7 @@
 ![Node Version](https://img.shields.io/node/v/@flo-ai/codex-ts-sdk)
 ![Tests](https://img.shields.io/github/actions/workflow/status/flo-ai/codex-ts-sdk/test.yml?label=tests)
 ![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/flo-ai/codex-ts-sdk/main/coverage/coverage-summary.json)
+![Lint](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/flo-ai/codex-ts-sdk/main/badges/lint-summary.json)
 ![NPM Version](https://img.shields.io/npm/v/@flo-ai/codex-ts-sdk)
 ![License](https://img.shields.io/badge/license-MIT-green)
 

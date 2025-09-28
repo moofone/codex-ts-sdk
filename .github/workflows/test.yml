@@ -30,9 +30,46 @@ jobs:
       - name: Run TypeScript check
         run: npm run typecheck
 
-      - name: Run linting
-        run: npm run lint
+      - name: Run linting and capture results
+        if: matrix.node-version == '18.x'
+        run: |
+          # Run linting and capture error count
+          LINT_OUTPUT=$(npm run lint 2>&1 || true)
+          LINT_ERRORS=$(echo "$LINT_OUTPUT" | grep -oP '\d+(?= problems)' | head -1 || echo "0")
+          echo "LINT_ERRORS=$LINT_ERRORS" >> $GITHUB_ENV
+          echo "Linting errors: $LINT_ERRORS"
+          # Still show full output for debugging
+          echo "$LINT_OUTPUT"
         continue-on-error: true
+
+      - name: Generate linting badge data
+        if: matrix.node-version == '18.x'
+        run: |
+          mkdir -p ./badges
+          if [ "$LINT_ERRORS" -eq 0 ]; then
+            COLOR="brightgreen"
+            MESSAGE="0 errors"
+          elif [ "$LINT_ERRORS" -lt 10 ]; then
+            COLOR="yellow"
+            MESSAGE="$LINT_ERRORS errors"
+          elif [ "$LINT_ERRORS" -lt 50 ]; then
+            COLOR="orange"
+            MESSAGE="$LINT_ERRORS errors"
+          else
+            COLOR="red"
+            MESSAGE="$LINT_ERRORS errors"
+          fi
+          echo "{\"schemaVersion\": 1, \"label\": \"lint\", \"message\": \"$MESSAGE\", \"color\": \"$COLOR\"}" > ./badges/lint-summary.json
+          cat ./badges/lint-summary.json
+
+      - name: Commit linting badge data
+        if: matrix.node-version == '18.x'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add ./badges/lint-summary.json
+          git diff --staged --quiet || git commit -m "Update linting badge data [skip ci]"
+          git push
 
       - name: Run tests
         run: npm test
