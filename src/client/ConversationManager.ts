@@ -130,7 +130,7 @@ export class ConversationManager extends EventEmitter {
   /**
    * Get an existing conversation
    */
-  async getConversation(conversationId: string): Promise<CodexClient> {
+  getConversation(conversationId: string): Promise<CodexClient> {
     const conversationInfo = this.conversations.get(conversationId);
     if (!conversationInfo) {
       throw new ConversationNotFoundError(conversationId);
@@ -145,7 +145,7 @@ export class ConversationManager extends EventEmitter {
     conversationInfo.lastActivity = new Date();
     this.resetInactivityTimer(conversationId);
 
-    return conversationInfo.client;
+    return Promise.resolve(conversationInfo.client);
   }
 
   /**
@@ -428,7 +428,7 @@ export class ConversationManager extends EventEmitter {
   /**
    * Handle inactive conversation cleanup
    */
-  private async handleInactiveConversation(conversationId: string): Promise<void> {
+  private handleInactiveConversation(conversationId: string): void {
     const conversationInfo = this.conversations.get(conversationId);
     if (!conversationInfo) {
       return;

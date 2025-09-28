@@ -23,6 +23,52 @@ export interface TokenCountEventMessage extends CodexEventMessage {
   rate_limits?: RateLimitSnapshot;
 }
 
+export interface TimingEventMetadata {
+  [key: string]: unknown;
+}
+
+export interface TimingEventInfo {
+  duration?: number;
+  operation?: string;
+  metadata?: TimingEventMetadata;
+}
+
+export interface TimingEventMessage extends CodexEventMessage {
+  type: 'timing';
+  info?: TimingEventInfo;
+}
+
+export interface ErrorEventInfo {
+  type?: string;
+  code?: string | number;
+  message?: string;
+}
+
+export interface ErrorEventMessage extends CodexEventMessage {
+  type: 'error';
+  info?: ErrorEventInfo;
+}
+
+export interface SystemHealthMemoryInfo {
+  used?: number;
+  total?: number;
+}
+
+export interface SystemHealthCpuInfo {
+  usage?: number;
+}
+
+export interface SystemHealthEventInfo {
+  memory?: SystemHealthMemoryInfo;
+  cpu?: SystemHealthCpuInfo;
+  system_health_score?: number;
+}
+
+export interface SystemHealthEventMessage extends CodexEventMessage {
+  type: 'system_health';
+  info?: SystemHealthEventInfo;
+}
+
 export interface TaskStartedEventMessage extends CodexEventMessage {
   type: 'task_started';
   model_context_window?: number;

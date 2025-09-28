@@ -1,8 +1,16 @@
 import { EventEmitter } from 'events';
 import { writeFile, mkdir } from 'fs/promises';
 import { dirname } from 'path';
+import type { RateLimitSnapshot } from '../bindings/RateLimitSnapshot';
+import type { RateLimitWindow } from '../bindings/RateLimitWindow';
 import type { CodexClient } from '../client/CodexClient';
-import type { CodexEvent } from '../types/events';
+import type {
+  CodexEvent,
+  ErrorEventMessage,
+  SystemHealthEventMessage,
+  TimingEventMessage,
+  TokenCountEventMessage,
+} from '../types/events';
 import type {
   DataCategory,
   DataPoint,
@@ -33,6 +41,35 @@ function log(
 interface RecordedPointMeta {
   key: string;
   point: DataPoint;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function readNumber(record: Record<string, unknown>, key: string): number | undefined {
+  const value = record[key];
+  return typeof value === 'number' ? value : undefined;
+}
+
+function isTokenCountEventMessage(message: CodexEvent['msg']): message is TokenCountEventMessage {
+  return message.type === 'token_count';
+}
+
+function isTimingEventMessage(message: CodexEvent['msg']): message is TimingEventMessage {
+  return message.type === 'timing';
+}
+
+function isErrorEventMessage(message: CodexEvent['msg']): message is ErrorEventMessage {
+  return message.type === 'error';
+}
+
+function isSystemHealthEventMessage(message: CodexEvent['msg']): message is SystemHealthEventMessage {
+  return message.type === 'system_health';
+}
+
+function isRateLimitWindow(value: unknown): value is RateLimitWindow {
+  return isRecord(value) && typeof value.used_percent === 'number';
 }
 
 /**
@@ -102,6 +139,8 @@ export class DataStorage extends EventEmitter {
     log(this.config.logger, 'info', 'Monitoring started', {
       startedAt: this.startedAt?.toISOString(),
     });
+
+    await Promise.resolve();
   }
 
   /**
@@ -242,28 +281,31 @@ export class DataStorage extends EventEmitter {
     }
   }
 
-  private async handleEvent(event: CodexEvent): Promise<void> {
+  private handleEvent(event: CodexEvent): void {
     if (!this.monitoring) {
       return;
     }
 
     try {
-      switch (event.msg.type) {
-        case 'token_count':
-          this.processTokenCount(event);
-          break;
-        case 'timing':
-          this.processTiming(event);
-          break;
-        case 'error':
-          this.processError(event);
-          break;
-        case 'system_health':
-          this.processSystemHealth(event);
-          break;
-        default:
-          // Unsupported event types are intentionally ignored.
-          break;
+      const timestamp = this.extractTimestamp(event);
+
+      if (isTokenCountEventMessage(event.msg)) {
+        this.processTokenCount(event.msg, timestamp);
+        return;
+      }
+
+      if (isTimingEventMessage(event.msg)) {
+        this.processTiming(event.msg, timestamp);
+        return;
+      }
+
+      if (isErrorEventMessage(event.msg)) {
+        this.processError(event.msg, timestamp);
+        return;
+      }
+
+      if (isSystemHealthEventMessage(event.msg)) {
+        this.processSystemHealth(event.msg, timestamp);
       }
     } catch (error) {
       const normalisedError = error instanceof Error ? error : new Error(String(error));
@@ -280,93 +322,124 @@ export class DataStorage extends EventEmitter {
     }
   }
 
-  private processTokenCount(event: CodexEvent): void {
-    const timestamp = this.extractTimestamp(event);
-    this.processTokenCountEvent(event, timestamp);
+  private processTokenCount(message: TokenCountEventMessage, timestamp: Date): void {
+    const infoRecord = isRecord(message.info) ? message.info : undefined;
+    const totalTokens = infoRecord ? readNumber(infoRecord, 'total') : undefined;
+    const inputTokens = infoRecord ? readNumber(infoRecord, 'input') : undefined;
+    const outputTokens = infoRecord ? readNumber(infoRecord, 'output') : undefined;
+    const limit = infoRecord ? readNumber(infoRecord, 'limit') : undefined;
+    const remaining = infoRecord ? readNumber(infoRecord, 'remaining') : undefined;
+
+    if (typeof totalTokens === 'number') {
+      const metadata: Record<string, unknown> = {};
+      if (typeof limit === 'number') {
+        metadata.limit = limit;
+      }
+      if (typeof remaining === 'number') {
+        metadata.remaining = remaining;
+      }
+
+      this.recordDataPoint('rate_limits', 'tokens_total', totalTokens, timestamp, metadata);
+    }
+
+    const rateLimits: RateLimitSnapshot | undefined = message.rate_limits;
+    const primaryWindow = rateLimits && isRateLimitWindow(rateLimits.primary) ? rateLimits.primary : undefined;
+    const secondaryWindow = rateLimits && isRateLimitWindow(rateLimits.secondary) ? rateLimits.secondary : undefined;
+
+    if (primaryWindow) {
+      this.recordDataPoint(
+        'rate_limits',
+        'primary_used_percent',
+        primaryWindow.used_percent,
+        timestamp,
+        {
+          window_minutes: primaryWindow.window_minutes,
+          resets_in_seconds: primaryWindow.resets_in_seconds,
+        }
+      );
+    }
+
+    if (secondaryWindow) {
+      this.recordDataPoint(
+        'rate_limits',
+        'secondary_used_percent',
+        secondaryWindow.used_percent,
+        timestamp,
+        {
+          window_minutes: secondaryWindow.window_minutes,
+          resets_in_seconds: secondaryWindow.resets_in_seconds,
+        }
+      );
+    }
+
+    if (typeof inputTokens === 'number') {
+      this.recordDataPoint('token_usage', 'input_tokens', inputTokens, timestamp);
+    }
+
+    if (typeof outputTokens === 'number') {
+      this.recordDataPoint('token_usage', 'output_tokens', outputTokens, timestamp);
+    }
+
+    if (typeof totalTokens === 'number') {
+      this.recordDataPoint('token_usage', 'total_tokens', totalTokens, timestamp);
+    }
   }
 
-  private processTokenCountEvent(event: CodexEvent, timestamp: Date): void {
-    const info = event.msg.info as any;
-    const tokenCountEvent = event.msg as any;
-    const rateLimits = tokenCountEvent.rate_limits;
-
-    if (typeof info?.total === 'number') {
-      this.recordDataPoint('rate_limits', 'tokens_total', info.total, timestamp, {
-        limit: info.limit,
-        remaining: info.remaining,
-      });
-    }
-
-    // Process rate limit percentages for chart generation
-    if (rateLimits?.primary?.used_percent != null) {
-      this.recordDataPoint('rate_limits', 'primary_used_percent', rateLimits.primary.used_percent, timestamp, {
-        window_minutes: rateLimits.primary.window_minutes,
-        resets_in_seconds: rateLimits.primary.resets_in_seconds,
-      });
-    }
-
-    if (rateLimits?.secondary?.used_percent != null) {
-      this.recordDataPoint('rate_limits', 'secondary_used_percent', rateLimits.secondary.used_percent, timestamp, {
-        window_minutes: rateLimits.secondary.window_minutes,
-        resets_in_seconds: rateLimits.secondary.resets_in_seconds,
-      });
-    }
-
-    if (typeof info?.input === 'number') {
-      this.recordDataPoint('token_usage', 'input_tokens', info.input, timestamp);
-    }
-
-    if (typeof info?.output === 'number') {
-      this.recordDataPoint('token_usage', 'output_tokens', info.output, timestamp);
-    }
-
-    if (typeof info?.total === 'number') {
-      this.recordDataPoint('token_usage', 'total_tokens', info.total, timestamp);
-    }
-  }
-
-  private processTiming(event: CodexEvent): void {
-    const info = event.msg.info as any;
-    if (typeof info?.duration !== 'number') {
+  private processTiming(message: TimingEventMessage, timestamp: Date): void {
+    const infoRecord = isRecord(message.info) ? message.info : undefined;
+    const duration = infoRecord ? readNumber(infoRecord, 'duration') : undefined;
+    if (typeof duration !== 'number') {
       return;
     }
 
-    const timestamp = this.extractTimestamp(event);
-    this.recordDataPoint('performance', 'api_request_duration', info.duration, timestamp, {
-      operation: info.operation,
-      ...info.metadata,
-    });
+    const metadata: Record<string, unknown> = {};
+    if (typeof infoRecord?.operation === 'string') {
+      metadata.operation = infoRecord.operation;
+    }
+    if (isRecord(infoRecord?.metadata)) {
+      metadata.metadata = { ...infoRecord.metadata };
+    }
+
+    this.recordDataPoint('performance', 'api_request_duration', duration, timestamp, metadata);
   }
 
-  private processError(event: CodexEvent): void {
-    const info = event.msg.info as any;
-    const timestamp = this.extractTimestamp(event);
+  private processError(message: ErrorEventMessage, timestamp: Date): void {
+    const infoRecord = isRecord(message.info) ? message.info : undefined;
 
-    this.recordDataPoint('system_health', 'error_rate', 1, timestamp, {
-      errorType: info?.type,
-      errorCode: info?.code,
-      message: info?.message,
-    });
+    const metadata: Record<string, unknown> = {};
+    if (typeof infoRecord?.type === 'string') {
+      metadata.errorType = infoRecord.type;
+    }
+    if (typeof infoRecord?.code === 'string' || typeof infoRecord?.code === 'number') {
+      metadata.errorCode = infoRecord.code;
+    }
+    if (typeof infoRecord?.message === 'string') {
+      metadata.message = infoRecord.message;
+    }
+
+    this.recordDataPoint('system_health', 'error_rate', 1, timestamp, metadata);
   }
 
-  private processSystemHealth(event: CodexEvent): void {
-    const info = event.msg.info as any;
-    const timestamp = this.extractTimestamp(event);
+  private processSystemHealth(message: SystemHealthEventMessage, timestamp: Date): void {
+    const infoRecord = isRecord(message.info) ? message.info : undefined;
+    const memoryInfo = isRecord(infoRecord?.memory) ? infoRecord.memory : undefined;
+    const cpuInfo = isRecord(infoRecord?.cpu) ? infoRecord.cpu : undefined;
 
-    const memoryUsed = info?.memory?.used;
-    const memoryTotal = info?.memory?.total;
+    const memoryUsed = memoryInfo ? readNumber(memoryInfo, 'used') : undefined;
+    const memoryTotal = memoryInfo ? readNumber(memoryInfo, 'total') : undefined;
     if (typeof memoryUsed === 'number' && typeof memoryTotal === 'number' && memoryTotal > 0) {
       const percent = (memoryUsed / memoryTotal) * 100;
       this.recordDataPoint('system_health', 'memory_usage', percent, timestamp);
     }
 
-    const cpuUsage = info?.cpu?.usage;
+    const cpuUsage = cpuInfo ? readNumber(cpuInfo, 'usage') : undefined;
     if (typeof cpuUsage === 'number') {
       this.recordDataPoint('system_health', 'cpu_usage', cpuUsage, timestamp);
     }
 
-    if (typeof info?.system_health_score === 'number') {
-      this.recordDataPoint('system_health', 'system_health_score', info.system_health_score, timestamp);
+    const systemHealthScore = infoRecord ? readNumber(infoRecord, 'system_health_score') : undefined;
+    if (typeof systemHealthScore === 'number') {
+      this.recordDataPoint('system_health', 'system_health_score', systemHealthScore, timestamp);
     }
   }
 
@@ -468,9 +541,15 @@ export class DataStorage extends EventEmitter {
   }
 
   private extractTimestamp(event: CodexEvent): Date {
-    const eventWithTimestamp = event as any;
-    if (eventWithTimestamp.timestamp) {
-      return new Date(eventWithTimestamp.timestamp);
+    const candidate = (event as { timestamp?: unknown }).timestamp;
+    if (candidate instanceof Date) {
+      return new Date(candidate);
+    }
+    if (typeof candidate === 'string' || typeof candidate === 'number') {
+      const parsed = new Date(candidate);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed;
+      }
     }
     return new Date();
   }
@@ -664,4 +743,3 @@ function restoreMock(fn: unknown, defaultValue: unknown = undefined): void {
     mockFn.mockResolvedValue(defaultValue);
   }
 }
-

@@ -71,8 +71,66 @@ jobs:
           git diff --staged --quiet || git commit -m "Update linting badge data [skip ci]"
           git push
 
-      - name: Run tests
-        run: npm test
+      - name: Run tests and capture results
+        if: matrix.node-version == '18.x'
+        run: |
+          # Run tests and capture results
+          TEST_OUTPUT=$(npm test 2>&1 || true)
+          echo "$TEST_OUTPUT"
+
+          # Extract test statistics
+          PASSED_TESTS=$(echo "$TEST_OUTPUT" | grep -oP '\d+(?= passed)' | tail -1 || echo "0")
+          FAILED_TESTS=$(echo "$TEST_OUTPUT" | grep -oP '\d+(?= failed)' | tail -1 || echo "0")
+          TOTAL_TESTS=$((PASSED_TESTS + FAILED_TESTS))
+
+          if [ "$TOTAL_TESTS" -gt 0 ]; then
+            PASS_RATE=$((PASSED_TESTS * 100 / TOTAL_TESTS))
+          else
+            PASS_RATE=0
+          fi
+
+          echo "TEST_PASS_RATE=$PASS_RATE" >> $GITHUB_ENV
+          echo "PASSED_TESTS=$PASSED_TESTS" >> $GITHUB_ENV
+          echo "FAILED_TESTS=$FAILED_TESTS" >> $GITHUB_ENV
+          echo "Test results: $PASSED_TESTS passed, $FAILED_TESTS failed ($PASS_RATE% pass rate)"
+
+          # Exit with error code if tests failed (for other jobs)
+          if [ "$FAILED_TESTS" -gt 0 ]; then
+            exit 1
+          fi
+        continue-on-error: true
+
+      - name: Generate test results badge
+        if: matrix.node-version == '18.x'
+        run: |
+          mkdir -p ./badges
+          if [ "$FAILED_TESTS" -eq 0 ]; then
+            COLOR="brightgreen"
+            MESSAGE="$PASSED_TESTS passed"
+          elif [ "$TEST_PASS_RATE" -ge 90 ]; then
+            COLOR="green"
+            MESSAGE="$TEST_PASS_RATE% pass"
+          elif [ "$TEST_PASS_RATE" -ge 75 ]; then
+            COLOR="yellow"
+            MESSAGE="$TEST_PASS_RATE% pass"
+          elif [ "$TEST_PASS_RATE" -ge 50 ]; then
+            COLOR="orange"
+            MESSAGE="$TEST_PASS_RATE% pass"
+          else
+            COLOR="red"
+            MESSAGE="$TEST_PASS_RATE% pass"
+          fi
+          echo "{\"schemaVersion\": 1, \"label\": \"tests\", \"message\": \"$MESSAGE\", \"color\": \"$COLOR\"}" > ./badges/tests-summary.json
+          cat ./badges/tests-summary.json
+
+      - name: Commit test results badge
+        if: matrix.node-version == '18.x'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add ./badges/tests-summary.json
+          git diff --staged --quiet || git commit -m "Update test results badge [skip ci]"
+          git push
 
       - name: Run tests with coverage
         run: npm run coverage

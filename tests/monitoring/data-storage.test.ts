@@ -158,8 +158,11 @@ describe('DataStorage', () => {
         value: 1500,
         timestamp: expect.any(Date),
         metadata: expect.objectContaining({
-          endpoint: '/chat/completions',
-          model: 'claude-3-sonnet',
+          operation: 'api_request',
+          metadata: expect.objectContaining({
+            endpoint: '/chat/completions',
+            model: 'claude-3-sonnet',
+          }),
         }),
       });
     });
@@ -640,7 +643,7 @@ describe('DataStorage', () => {
       storage.on('processingError', errorSpy);
 
       // Mock internal processing to fail
-      vi.spyOn(storage as any, 'processTokenCountEvent').mockImplementation(() => {
+      vi.spyOn(storage as any, 'processTokenCount').mockImplementation(() => {
         throw new Error('Processing failed');
       });
 

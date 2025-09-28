@@ -862,8 +862,8 @@ export class CodexClient extends EventEmitter {
   on(event: 'event', listener: CodexClientEventListener<CodexEvent>): this;
   on(event: 'error', listener: (error: unknown) => void): this;
   on(event: typeof EVENT_STREAM_CLOSED, listener: () => void): this;
-  on(event: string, listener: (...args: any[]) => void): this {
-    return super.on(event, listener as (...args: any[]) => void);
+  on(event: string, listener: (...args: unknown[]) => void): this {
+    return super.on(event, listener as Parameters<EventEmitter['on']>[1]);
   }
 
   once(
@@ -917,8 +917,8 @@ export class CodexClient extends EventEmitter {
   once(event: 'event', listener: CodexClientEventListener<CodexEvent>): this;
   once(event: 'error', listener: (error: unknown) => void): this;
   once(event: typeof EVENT_STREAM_CLOSED, listener: () => void): this;
-  once(event: string, listener: (...args: any[]) => void): this {
-    return super.once(event, listener as (...args: any[]) => void);
+  once(event: string, listener: (...args: unknown[]) => void): this {
+    return super.once(event, listener as Parameters<EventEmitter['once']>[1]);
   }
 
   off(
@@ -969,8 +969,8 @@ export class CodexClient extends EventEmitter {
   off(event: 'event', listener: CodexClientEventListener<CodexEvent>): this;
   off(event: 'error', listener: (error: unknown) => void): this;
   off(event: typeof EVENT_STREAM_CLOSED, listener: () => void): this;
-  off(event: string, listener: (...args: any[]) => void): this {
-    return super.off(event, listener as (...args: any[]) => void);
+  off(event: string, listener: (...args: unknown[]) => void): this {
+    return super.off(event, listener as Parameters<EventEmitter['off']>[1]);
   }
 
   private requireSession(): CodexSessionHandle {
@@ -1156,17 +1156,17 @@ function detectVersionFromCargoToml(config: CodexClientConfig): string | undefin
         continue;
       }
       const contents = readFileSync(manifest, 'utf8');
-      const workspaceMatch = contents.match(/\[workspace\.package\][^\[]*version\s*=\s*"([^"]+)"/);
+      const workspaceMatch = contents.match(/\[workspace\.package][^[]*version\s*=\s*"([^"]+)"/);
       if (workspaceMatch?.[1]) {
         return normalizeVersion(workspaceMatch[1]);
       }
       const packageMatch = contents.match(
-        /\[package\][^\[]*name\s*=\s*"codex-cli"[^\[]*version\s*=\s*"([^"]+)"/,
+        /\[package][^[]*name\s*=\s*"codex-cli"[^[]*version\s*=\s*"([^"]+)"/,
       );
       if (packageMatch?.[1]) {
         return normalizeVersion(packageMatch[1]);
       }
-      const genericMatch = contents.match(/\[package\][^\[]*version\s*=\s*"([^"]+)"/);
+      const genericMatch = contents.match(/\[package][^[]*version\s*=\s*"([^"]+)"/);
       if (genericMatch?.[1]) {
         return normalizeVersion(genericMatch[1]);
       }
@@ -1178,18 +1178,6 @@ function detectVersionFromCargoToml(config: CodexClientConfig): string | undefin
 }
 
 function gatherCargoTomlCandidates(config: CodexClientConfig): string[] {
-  const roots = new Set<string>();
-  const addRoot = (value: string | undefined) => {
-    if (!value) {
-      return;
-    }
-    const expanded = expandHomePath(value);
-    if (!expanded) {
-      return;
-    }
-    roots.add(path.isAbsolute(expanded) ? expanded : path.resolve(expanded));
-  };
-
   const nativeDir = config.nativeModulePath
     ? path.dirname(config.nativeModulePath)
     : path.join(process.cwd(), 'native', 'codex-napi');

@@ -27,10 +27,6 @@ export function getCodexCliVersion(options?: LoadNativeModuleOptions): string {
     }
 
     const fallbackPath = path.join(process.cwd(), 'native', 'codex-napi', 'index.js');
-    try {
-      return attempt({ ...options, modulePath: fallbackPath });
-    } catch (fallbackError) {
-      throw fallbackError;
-    }
+    return attempt({ ...options, modulePath: fallbackPath });
   }
 }

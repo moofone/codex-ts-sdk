@@ -168,7 +168,7 @@ describe('ConversationManager', () => {
 
     it('should throw error for non-existent conversation', async () => {
       await expect(manager.getConversation('non-existent')).rejects.toThrow(
-        ConversationNotFoundError
+        'Conversation not found: non-existent'
       );
     });
 
@@ -425,7 +425,7 @@ describe('ConversationManager', () => {
       const { client } = await manager.createConversation();
 
       expect(client.on).toHaveBeenCalledWith('event', expect.any(Function));
-      expect(client.on).toHaveBeenCalledWith('close', expect.any(Function));
+      expect(client.on).toHaveBeenCalledWith('eventStreamClosed', expect.any(Function));
       expect(client.on).toHaveBeenCalledWith('error', expect.any(Function));
     });
 
