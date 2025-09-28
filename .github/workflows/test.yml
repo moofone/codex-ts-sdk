@@ -1,0 +1,84 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run TypeScript check
+        run: npm run typecheck
+
+      - name: Run linting
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
+
+      - name: Run tests with coverage
+        run: npm run coverage
+
+      - name: Extract coverage percentage
+        if: matrix.node-version == '18.x'
+        run: |
+          # Extract coverage percentage from vitest output or coverage files
+          COVERAGE=$(npm run coverage 2>&1 | grep -oP 'All files.*?(\d+\.?\d*)%' | grep -oP '\d+\.?\d*' | tail -1 || echo "0")
+          echo "COVERAGE_PERCENT=$COVERAGE" >> $GITHUB_ENV
+          echo "Coverage: $COVERAGE%"
+
+      - name: Generate coverage badge data
+        if: matrix.node-version == '18.x'
+        run: |
+          mkdir -p ./coverage
+          echo "{\"schemaVersion\": 1, \"label\": \"coverage\", \"message\": \"${COVERAGE_PERCENT}%\", \"color\": \"brightgreen\"}" > ./coverage/coverage-summary.json
+          cat ./coverage/coverage-summary.json
+
+      - name: Commit coverage summary
+        if: matrix.node-version == '18.x'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add ./coverage/coverage-summary.json
+          git diff --staged --quiet || git commit -m "Update coverage summary [skip ci]"
+          git push
+
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build

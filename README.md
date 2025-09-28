@@ -1,18 +1,25 @@
 # OpenAI Codex TypeScript SDK
 
+![Node Version](https://img.shields.io/node/v/@flo-ai/codex-ts-sdk)
+![Tests](https://img.shields.io/github/actions/workflow/status/flo-ai/codex-ts-sdk/test.yml?label=tests)
+![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/flo-ai/codex-ts-sdk/main/coverage/coverage-summary.json)
+![NPM Version](https://img.shields.io/npm/v/@flo-ai/codex-ts-sdk)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 Experimental TypeScript client for the [OpenAI Codex](https://openai.com/codex/) native runtime.
 
 No conflict with native codex cli!
 
 📖 **[Architecture Documentation](docs/architecture.md)** - Detailed system design and component overview
 
-## Highlights
-- Typed `CodexClient` for conversations, streaming events, and approvals
-- Builder utilities for sharing configuration
-- Plugin, logging, retry, sandbox, and approval hooks
-- `getCodexCliVersion()` to ensure the SDK and codex-cli runtimes stay in sync (See Notes below)
-- Native loader automatically discovers the correct `native/codex-napi` binary so deployments stay portable
-- `events()` exposes a cleanup-aware async iterator backed by an internal queue, so `for await` loops stop cleanly on abort
+## Key Features
+
+- **🔗 Native Rust Integration** – Direct NAPI bindings to codex-rs for maximum performance and CLI compatibility
+- **🎯 Multi-Conversation Management** – Orchestrate concurrent conversations with automatic lifecycle management and resumption
+- **💾 Session Persistence & Replay** – Record conversations to JSONL/JSON and resume from any point with full state restoration
+- **📊 Real-Time Rate Monitoring** – Live rate limit tracking with visual progress indicators and usage projections
+- **🔌 Enterprise-Ready Architecture** – Connection pooling, retry logic, plugin system, and comprehensive error handling
+- **⚡ Type-Safe Streaming** – Fully typed event streams with async iterators and automatic cleanup
 
 ## Version Matching
 
@@ -93,25 +100,19 @@ loginWithApiKey(process.env.OPENAI_API_KEY!, { codexHome: process.env.CODEX_HOME
 
 If you prefer the browser-based ChatGPT OAuth flow, run `codex login` from the CLI instead.
 
-## Useful scripts
-- `npm run setup` – install, build, native compile, smoke check
-- `npm run build`
-- `npm run test:live:status` – live smoke test
+## Development Scripts
 
-### Live version checks
+### Setup & Build
+- **`npm run setup`** – Complete SDK setup: install dependencies, discover codex-rs version, build native bindings, and run smoke tests. Requires `CODEX_RUST_ROOT` environment variable pointing to your codex-rs checkout.
+- **`npm run build:native`** – Compile the Rust NAPI bindings only. Faster than full setup when you just need to rebuild native code.
+- **`npm run package`** – Full build pipeline: TypeScript compilation (ESM/CJS), type definitions, and native bindings. Used for publishing.
 
-The `tests/live/statusTest.ts` harness prints the version baked into the native module. To see a real semantic version instead of `0.0.0`, check out an official tag (e.g. `git -C /path/to/codex-rs checkout rust-v0.42.0`) before running `npm run setup`. The test uses the SDK’s live API and native telemetry only—no CLI fallbacks are invoked.
-- `npm test`
+### Testing & Validation
+- **`npm run test:live:status`** – Live integration test that connects to Codex runtime, sends a conversation turn, and validates rate limit monitoring. Requires active authentication (via `codex login` or API key).
+- **`npm run test:live:auth`** – Authentication system test that verifies API key functionality works correctly, especially when ChatGPT OAuth is already active. Uses intentionally invalid keys to test failure paths.
+- **`npm run test`** – Run full test suite (unit tests only, no live API calls)
+- **`npm run coverage`** – Generate test coverage report
 
-## Configuration reference
-
-| Option             | Description                                                                                          |
-| ------------------ | ---------------------------------------------------------------------------------------------------- |
-| `codexHome`        | Path to the Codex runtime directory (contains binaries and generated state). Supports `~` expansion. |
-| `nativeModulePath` | Override path to the compiled `codex-napi` binary.                                                   |
-| `logger`           | Partial logger implementation for structured output.                                                 |
-| `retryPolicy`      | `{ maxRetries, initialDelayMs, backoffFactor }` for connect retries.                                 |
-| `approvalPolicy`   | Default approval policy applied to `sendUserTurn` (defaults to `on-request`).                        |
-| `sandboxPolicy`    | Default sandbox mode for tool execution (defaults to `workspace-write` with no network).             |
-| `defaultModel`     | Canonical Codex model slug used when not provided.                                                   |
-| `plugins`          | Array of `CodexPlugin` implementations.                                                              |
+### Code Quality
+- **`npm run lint`** – Run ESLint on source code
+- **`npm run typecheck`** – TypeScript compilation check without output generation
