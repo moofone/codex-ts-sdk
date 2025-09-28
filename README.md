@@ -66,7 +66,22 @@ Monitor your OpenAI API rate limits with visual ASCII charts and usage projectio
 node examples/live-rate-limits.cjs
 ```
 
-![Rate Limit Monitor](docs/rate-limit-monitor.png)
+Example output (colors stripped for readability):
+
+```text
+Connecting and fetching live data...
+
+Current Rate Limits
+
+Primary (gpt-4.1-mini per-week):
+  [██████████████████████████---------------·······················] 58% (~8.4%/day)
+  Window: 2025-09-20 08:41 → 2025-09-27 08:41
+  Safe - won't hit 100% before reset
+
+Secondary (gpt-4.1-mini per-day):
+  [███████████████████████████!-----------·······················] 83%
+  Projected 100%: 2025-09-26 19:07
+```
 
 The monitor shows:
 - **Visual progress bars** with current usage in color-coded blocks
