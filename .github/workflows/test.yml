@@ -106,19 +106,19 @@ jobs:
           mkdir -p ./badges
           if [ "$FAILED_TESTS" -eq 0 ]; then
             COLOR="brightgreen"
-            MESSAGE="$PASSED_TESTS passed"
+            MESSAGE="$PASSED_TESTS/$TOTAL_TESTS passed"
           elif [ "$TEST_PASS_RATE" -ge 90 ]; then
             COLOR="green"
-            MESSAGE="$TEST_PASS_RATE% pass"
+            MESSAGE="$PASSED_TESTS/$TOTAL_TESTS passed"
           elif [ "$TEST_PASS_RATE" -ge 75 ]; then
             COLOR="yellow"
-            MESSAGE="$TEST_PASS_RATE% pass"
+            MESSAGE="$PASSED_TESTS/$TOTAL_TESTS passed"
           elif [ "$TEST_PASS_RATE" -ge 50 ]; then
             COLOR="orange"
-            MESSAGE="$TEST_PASS_RATE% pass"
+            MESSAGE="$PASSED_TESTS/$TOTAL_TESTS passed"
           else
             COLOR="red"
-            MESSAGE="$TEST_PASS_RATE% pass"
+            MESSAGE="$PASSED_TESTS/$TOTAL_TESTS passed"
           fi
           echo "{\"schemaVersion\": 1, \"label\": \"tests\", \"message\": \"$MESSAGE\", \"color\": \"$COLOR\"}" > ./badges/tests-summary.json
           cat ./badges/tests-summary.json
