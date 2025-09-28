@@ -14,12 +14,12 @@ No conflict with native codex cli!
 
 ## Key Features
 
-- **🔗 Native Rust Integration** – Direct NAPI bindings to codex-rs for maximum performance and CLI compatibility
-- **🎯 Multi-Conversation Management** – Orchestrate concurrent conversations with automatic lifecycle management and resumption
-- **💾 Session Persistence & Replay** – Record conversations to JSONL/JSON and resume from any point with full state restoration
-- **📊 Real-Time Rate Monitoring** – Live rate limit tracking with visual progress indicators and usage projections
-- **🔌 Enterprise-Ready Architecture** – Connection pooling, retry logic, plugin system, and comprehensive error handling
-- **⚡ Type-Safe Streaming** – Fully typed event streams with async iterators and automatic cleanup
+- **Native Rust Integration** – Direct NAPI bindings to codex-rs for maximum performance and CLI compatibility
+- **Multi-Conversation Management** – Orchestrate concurrent conversations with automatic lifecycle management and resumption
+- **Session Persistence & Replay** – Record conversations to JSONL/JSON and resume from any point with full state restoration
+- **Real-Time Rate Monitoring** – Live rate limit tracking with visual progress indicators and usage projections
+- **Enterprise-Ready Architecture** – Connection pooling, retry logic, plugin system, and comprehensive error handling
+- **Type-Safe Streaming** – Fully typed event streams with async iterators and automatic cleanup
 
 ## Version Matching
 

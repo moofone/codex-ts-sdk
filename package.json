@@ -79,6 +79,8 @@
     "test": "vitest run",
     "test:watch": "vitest watch",
     "test:live:status": "node --enable-source-maps scripts/run-live-status.mjs",
+    "test:monitoring": "vitest run --reporter=verbose tests/monitoring/",
+    "test:persistence": "vitest run --reporter=verbose tests/persistence/",
     "coverage": "vitest run --coverage",
     "build:native": "napi build --platform --manifest-path native/codex-napi/Cargo.toml",
     "package": "npm run build && npm run build:native",
@@ -111,5 +113,8 @@
         "dist/types/src/*"
       ]
     }
+  },
+  "dependencies": {
+    "playwright": "^1.55.1"
   }
 }

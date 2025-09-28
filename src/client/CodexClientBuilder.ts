@@ -73,6 +73,11 @@ export class CodexClientBuilder {
     return this;
   }
 
+  withConfig(config: CodexClientConfig): this {
+    Object.assign(this.config, config);
+    return this;
+  }
+
   build(): CodexClient {
     return new CodexClient({ ...this.config });
   }

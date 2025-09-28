@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scenario 1 - Safe</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background-color: #121212; color: #f5f5f5; line-height: 1.6; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 28px; }
+    header { text-align: center; margin-bottom: 28px; padding: 24px; background-color: #1f1f1f; border-radius: 12px; border: 1px solid #2c2c2c; }
+    header h1 { font-size: 2.2rem; margin-bottom: 8px; }
+    header p { color: #666666; font-size: 0.95rem; }
+    section { margin-bottom: 28px; padding: 24px; background-color: #1f1f1f; border-radius: 12px; }
+    .status { display: flex; align-items: center; gap: 12px; padding: 16px; border-radius: 8px; font-weight: 600; font-size: 1.05rem; margin-bottom: 18px; }
+    .status-safe { background-color: #81c78422; border: 2px solid #81c784; }
+    .status-warning { background-color: #ffb74d22; border: 2px solid #ffb74d; }
+    .status-critical { background-color: #ef535022; border: 2px solid #ef5350; }
+    .primary-concern { padding: 16px; background-color: #121212; border-radius: 8px; border-left: 4px solid #4fc3f7; margin-bottom: 18px; }
+    .recommendations ul { margin-left: 18px; }
+    .recommendations li { margin-bottom: 6px; }
+    .chart-wrapper { padding: 18px; background-color: #121212; border-radius: 10px; }
+    .coverage-note { margin-top: 12px; color: #666666; font-size: 0.95rem; }
+    .stats-grid { display: grid; grid-template-columns: 1fr; gap: 20px; max-width: 400px; margin: 0 auto; }
+    .stat-card { padding: 18px; background-color: #121212; border-radius: 8px; border: 1px solid #2c2c2c; }
+    .stat-item { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.95rem; }
+    .stat-label { color: #666666; }
+    .stat-value { font-weight: 600; }
+    .title-container { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .plan-label { background-color: #2c2c2c; color: #f5f5f5; padding: 2px 10px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    footer { text-align: center; color: #666666; padding-top: 16px; border-top: 1px solid #2c2c2c; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <section>
+      <div class="title-container">
+        <h2>Codex Usage</h2>
+        <span class="plan-label">Pro</span>
+      </div>
+      <div class="chart-wrapper">
+        <canvas id="scenarioChart" height="360"></canvas>
+      </div>
+    </section>
+
+
+    <footer>Made with <a href="https://github.com/moofone/codex-ts-sdk" target="_blank" style="color: #4fc3f7; text-decoration: none;">codex-ts-sdk</a></footer>
+  </div>
+
+  <script>
+    const payload = {"labels":["09/21 06:00","09/21 12:00","09/21 18:00","09/22 00:00","09/22 06:00","09/22 12:00","09/22 18:00","09/23 00:00","09/23 06:00","09/23 12:00","09/23 18:00","09/24 00:00","09/24 06:00","09/24 12:00","09/24 18:00","09/25 00:00","09/25 06:00","09/25 12:00","09/25 18:00","09/26 00:00","09/26 06:00","09/26 12:00","09/26 18:00","09/27 00:00","09/27 06:00","09/27 12:00","09/27 18:00","09/28 00:00","09/28 06:00"],"actual":[5,6.8,8.2,8.2,16.3,17.2,18,18,25.2,26.9,28.2,28.3,36,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],"projection":[null,null,null,null,null,null,null,null,null,null,null,null,33.4,35.9,38.3,40.8,43.3,45.7,48.2,50.7,53.1,55.6,58,60.5,63,65.4,67.9,70.4,72.8],"errorUpper":[null,null,null,null,null,null,null,null,null,null,null,null,36.8,39.5,42.2,44.9,47.6,50.3,53,55.7,58.4,61.1,63.8,66.6,69.3,72,74.7,77.4,80.1],"errorLower":[null,null,null,null,null,null,null,null,null,null,null,null,30.1,32.3,34.5,36.7,38.9,41.2,43.4,45.6,47.8,50,52.2,54.5,56.7,58.9,61.1,63.3,65.5],"pointRadii":[5,5,5,5,5,5,5,5,5,5,5,5,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"pointColors":["#81c784","#81c784","#81c784","#81c784","#81c784","#81c784","#81c784","#81c784","#81c784","#81c784","#81c784","#81c784","#81c784","rgba(0,0,0,0)","rgba(0,0,0,0)","rgba(0,0,0,0)","rgba(0,0,0,0)","rgba(0,0,0,0)","rgba(0,0,0,0)","rgba(0,0,0,0)","rgba(0,0,0,0)","rgba(0,0,0,0)","rgba(0,0,0,0)","rgba(0,0,0,0)","rgba(0,0,0,0)","rgba(0,0,0,0)","rgba(0,0,0,0)","rgba(0,0,0,0)","rgba(0,0,0,0)"],"lastActualIndex":12,"projectionLineColor":"#81c784"};
+    const isDark = true;
+    const palette = {
+      secondary: '#81c784',
+      projection: '#81c784',
+      warning: '#ffb74d',
+      critical: '#ef5350',
+      grid: '#333333',
+      text: '#f5f5f5',
+    };
+
+    const ctx = document.getElementById('scenarioChart').getContext('2d');
+    const labels = payload.labels;
+    const observed = payload.actual;
+    const projection = payload.projection;
+    const pointRadii = payload.pointRadii;
+    const pointColors = payload.pointColors;
+    const lastActualIndex = payload.lastActualIndex;
+    const projectionLineColor = payload.projectionLineColor;
+    const errorUpper = payload.errorUpper;
+    const errorLower = payload.errorLower;
+
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: '7d',
+            data: observed,
+            borderColor: (context) => {
+              if (!context.parsed) return palette.secondary;
+              const value = context.parsed.y;
+              if (value >= 75) return palette.warning;
+              return palette.secondary;
+            },
+            backgroundColor: palette.secondary + '33',
+            spanGaps: false,
+            tension: 0.25,
+            pointRadius: pointRadii,
+            pointBackgroundColor: pointColors,
+            pointBorderColor: pointColors,
+            borderWidth: 3,
+            segment: {
+              borderColor: (ctx) => {
+                const currentValue = ctx.p0.parsed.y;
+                const nextValue = ctx.p1.parsed.y;
+                const maxValue = Math.max(currentValue, nextValue);
+                if (maxValue >= 75) return palette.warning;
+                return palette.secondary;
+              }
+            }
+          },
+          {
+            label: 'Projection',
+            data: projection,
+            borderColor: projectionLineColor,
+            borderDash: [8, 4], // Always dashed
+            borderWidth: 2,
+            fill: false,
+            pointRadius: 0,
+            tension: 0,
+            spanGaps: false,
+          },
+          {
+            label: 'Error Band Upper',
+            data: errorUpper,
+            borderColor: 'transparent',
+            backgroundColor: 'transparent',
+            fill: '+1', // Fill to the next dataset (lower bound)
+            pointRadius: 0,
+            tension: 0,
+            spanGaps: false,
+          },
+          {
+            label: 'Error Band Lower',
+            data: errorLower,
+            borderColor: 'transparent',
+            backgroundColor: projectionLineColor + '20', // 20% opacity
+            fill: false,
+            pointRadius: 0,
+            tension: 0,
+            spanGaps: false,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'nearest', intersect: false },
+        scales: {
+          x: {
+            type: 'category',
+            grid: { color: palette.grid },
+            ticks: {
+              color: palette.text,
+              maxTicksLimit: 8,
+              callback: function(value, index) {
+                // Only show labels at daily intervals (every 4th point)
+                if (index % 4 === 0) {
+                  return this.getLabelForValue(value);
+                }
+                return null;
+              },
+              major: {
+                enabled: true
+              }
+            }
+          },
+          y: {
+            beginAtZero: true,
+            max: 100,
+            grid: { color: palette.grid },
+            ticks: {
+              color: palette.text,
+              callback: value => value + '%',
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            labels: {
+              color: palette.text,
+              usePointStyle: true,
+              boxWidth: 14,
+              padding: 18,
+              filter: function(item, chart) {
+                // Hide error band datasets from legend
+                return !item.text.includes('Error Band');
+              }
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: context => context.parsed.y == null ? null : context.dataset.label + ': ' + context.parsed.y.toFixed(1) + '%',
+            }
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>

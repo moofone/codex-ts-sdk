@@ -4,6 +4,7 @@ import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { loginWithApiKey } from '../src/auth';
+import { CodexClient } from '../src/client/CodexClient';
 import { CodexAuthError } from '../src/errors/CodexError';
 
 function createTempCodexHome(): string {
@@ -104,4 +105,54 @@ describe('loginWithApiKey', () => {
     // Because we mocked the write, the file should not exist on disk.
     expect(fs.existsSync(path.join(dir, 'auth.json'))).toBe(false);
   });
+});
+
+describe('Live Authentication Integration', () => {
+  it('verifies API key authentication behavior with invalid keys', async () => {
+    const dir = createTempCodexHome();
+
+    try {
+      // Test 1: Verify loginWithApiKey accepts properly formatted but invalid keys
+      // This should succeed (file write) but fail on actual connection
+      expect(() => {
+        loginWithApiKey('sk-invalid-test-key-12345', { codexHome: dir });
+      }).not.toThrow();
+
+      // Verify the auth file was written
+      const authPath = path.join(dir, 'auth.json');
+      expect(fs.existsSync(authPath)).toBe(true);
+      const authContent = JSON.parse(fs.readFileSync(authPath, 'utf-8'));
+      expect(authContent.openai_api_key).toBe('sk-invalid-test-key-12345');
+
+      // Test 2: Verify connection fails with invalid API key
+      const client = new CodexClient({
+        codexHome: dir,
+        logger: {
+          debug: () => {}, // Suppress debug logs for test
+          info: () => {},
+          warn: () => {},
+          error: () => {},
+        },
+      });
+
+      // Connection should fail with authentication error for invalid key
+      await expect(async () => {
+        await client.connect();
+        await client.createConversation();
+      }).rejects.toThrow();
+
+      // Cleanup
+      try {
+        await client.close();
+      } catch {
+        // Ignore close errors if connection failed
+      }
+
+    } finally {
+      // Clean up temp directory
+      if (fs.existsSync(dir)) {
+        fs.rmSync(dir, { force: true, recursive: true });
+      }
+    }
+  }, 10000); // 10 second timeout for network operations
 });

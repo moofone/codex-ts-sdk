@@ -1,5 +1,16 @@
 import type { DataPoint } from '../types/monitoring';
 
+// Mock scenario data point interface for analyzer
+interface MockDataPoint {
+  timestamp: number;
+  model: string;
+  queryLatency: number;
+  rateLimits: {
+    primary: { used_percent: number; window_minutes: number; resets_in_seconds: number };
+    secondary: { used_percent: number; window_minutes: number; resets_in_seconds: number };
+  };
+}
+
 /**
  * Linear regression result
  */
@@ -68,7 +79,7 @@ export class RateLimitAnalyzer {
   /**
    * Analyze a collection of rate limit data points
    */
-  analyzeData(dataPoints: DataPoint[]): AnalysisResult {
+  analyzeData(dataPoints: MockDataPoint[]): AnalysisResult {
     if (dataPoints.length === 0) {
       throw new Error('No data points provided for analysis');
     }

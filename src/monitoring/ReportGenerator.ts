@@ -1,6 +1,17 @@
 import type { DataPoint } from '../types/monitoring';
 import type { AnalysisResult } from './RateLimitAnalyzer';
 
+// Mock scenario data point interface for reports
+interface MockDataPoint {
+  timestamp: number;
+  model: string;
+  queryLatency: number;
+  rateLimits: {
+    primary: { used_percent: number; window_minutes: number; resets_in_seconds: number };
+    secondary: { used_percent: number; window_minutes: number; resets_in_seconds: number };
+  };
+}
+
 /**
  * Report generation options
  */
@@ -19,7 +30,7 @@ export class RateLimitReportGenerator {
    * Generate a complete HTML report
    */
   generateReport(
-    dataPoints: DataPoint[],
+    dataPoints: MockDataPoint[],
     analysis: AnalysisResult,
     options: ReportOptions = {}
   ): string {
@@ -75,7 +86,7 @@ export class RateLimitReportGenerator {
   /**
    * Prepare data for Chart.js visualization
    */
-  private prepareChartData(dataPoints: DataPoint[]) {
+  private prepareChartData(dataPoints: MockDataPoint[]) {
     const sortedPoints = [...dataPoints].sort((a, b) => a.timestamp - b.timestamp);
 
     return {
@@ -247,7 +258,7 @@ export class RateLimitReportGenerator {
   /**
    * Generate raw data section HTML
    */
-  private generateRawDataSection(dataPoints: DataPoint[]): string {
+  private generateRawDataSection(dataPoints: MockDataPoint[]): string {
     const tableRows = dataPoints
       .sort((a, b) => b.timestamp - a.timestamp) // Most recent first
       .map(point => `
