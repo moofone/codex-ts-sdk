@@ -214,6 +214,216 @@ User Code Event Handler
 - Graceful degradation
 - Retry with exponential backoff
 
+## Version Management System
+
+The SDK implements a comprehensive version management system that ensures consistency between the TypeScript layer and the underlying Rust runtime.
+
+### 1. Build-Time Version Discovery
+
+#### Setup Script (`scripts/setup.cjs`)
+
+The setup script automatically discovers version information from the codex-rs workspace:
+
+```javascript
+// Locates and parses codex-rs Cargo.toml
+workspaceManifestPath = locateCodexManifest(codexRustRoot);
+workspaceVersion = extractWorkspaceVersion(workspaceManifestPath);
+```
+
+**Version Resolution Priority:**
+1. `[workspace.package].version` in codex-rs root Cargo.toml
+2. `[package].version` where `name = "codex-cli"`
+3. Fallback to `codex --version` command output
+
+### 2. Native Module Version Embedding
+
+#### Version Injection at Build Time
+
+During the native module compilation, version information is embedded through environment variables:
+
+```rust
+// In native/codex-napi/src/lib.rs
+fn resolved_version() -> &'static str {
+    option_env!("CODEX_CLI_VERSION")
+        .or_else(|| option_env!("CODEX_RS_VERSION"))
+        .unwrap_or("0.0.0")
+}
+
+#[napi]
+pub fn cli_version() -> String {
+    resolved_version().to_string()
+}
+```
+
+The build process sets these environment variables based on the discovered workspace version.
+
+### 3. Runtime Version Detection
+
+#### SDK Version API (`src/version.ts`)
+
+```typescript
+export function getCodexCliVersion(options?: LoadNativeModuleOptions): string {
+  const module = loadNativeModule(options);
+  if (typeof module.cliVersion !== 'function') {
+    throw new Error('Native module does not expose cliVersion()');
+  }
+  return normalizeVersion(module.cliVersion());
+}
+```
+
+**Detection Flow:**
+1. Load native module (`index.node`)
+2. Call embedded `cliVersion()` function
+3. Normalize version string (extract semver pattern)
+4. Provide fallback paths for module resolution
+
+### 4. Rate Limit Data Enhancement
+
+#### Problem: Open Source vs Production Gaps
+
+OpenAI's production environment includes rate limit functionality that's not available in the open source codex-rs. The SDK bridges this gap by injecting mock rate limits.
+
+#### Solution: JSON-Level Event Modification
+
+```rust
+// In serialize_event function
+fn serialize_event(event: Event) -> napi::Result<String> {
+    let mut json_value = serde_json::to_value(&event)?;
+
+    // Inject rate limits into TokenCount events
+    if let EventMsg::TokenCount(_) = &event.msg {
+        if let Some(msg_obj) = json_value.get_mut("msg") {
+            if let Some(msg_map) = msg_obj.as_object_mut() {
+                if !msg_map.contains_key("rate_limits") {
+                    let mock_rate_limits = serde_json::json!({
+                        "primary": {
+                            "used_percent": 25.5,
+                            "window_minutes": 60,
+                            "resets_in_seconds": 1800
+                        },
+                        "secondary": {
+                            "used_percent": 45.0,
+                            "window_minutes": 1440,
+                            "resets_in_seconds": 7200
+                        }
+                    });
+                    msg_map.insert("rate_limits".to_string(), mock_rate_limits);
+                }
+            }
+        }
+    }
+
+    serde_json::to_string(&json_value)
+}
+```
+
+**Why JSON-Level Modification:**
+- Avoids protocol structure mismatches between versions
+- Provides flexibility for missing open source features
+- Maintains compatibility with existing TypeScript parsing
+
+### 5. Status Store Integration
+
+#### Rate Limit Data Processing
+
+The `StatusStore` transforms raw rate limit data into user-friendly formats:
+
+```typescript
+class StatusStore {
+  private buildRateLimitWindows(
+    snapshot: RateLimitSnapshot | undefined,
+    lastUpdated?: Date,
+  ): RateLimitStatusSummary | undefined {
+    const buildWindow = (window?: RateLimitWindow): RateLimitWindowStatus | undefined => {
+      const resetsAt = typeof window.resets_in_seconds === 'number'
+        ? new Date((lastUpdated?.getTime() ?? Date.now()) + window.resets_in_seconds * 1000)
+        : undefined;
+
+      return {
+        used_percent: window.used_percent,
+        window_minutes: window.window_minutes,
+        resets_in_seconds: window.resets_in_seconds,
+        short_label: shortLabel,
+        label: fullLabel,
+        resets_at: resetsAt,  // Calculated from raw seconds
+      };
+    };
+  }
+}
+```
+
+**Data Transformation:**
+- Raw `resets_in_seconds` → Absolute `resets_at` timestamps
+- Numeric `window_minutes` → Human-readable labels ("5h", "weekly")
+- Percentage formatting and status calculations
+
+### 6. API Client Identification
+
+#### Originator Headers for Server Compatibility
+
+The SDK uses environment variables to identify itself to OpenAI's backend:
+
+```bash
+CODEX_INTERNAL_ORIGINATOR_OVERRIDE=codex_cli_rs
+```
+
+This sets HTTP headers in API requests:
+- `originator: codex_cli_rs`
+- `User-Agent: codex_cli_rs/0.42.0`
+
+**Purpose:**
+- Ensures identical server-side treatment as CLI
+- Enables consistent rate limiting policies
+- Supports feature flag compatibility
+- Provides telemetry separation
+
+### 7. Local Development Dependencies
+
+#### Path-Based Cargo Dependencies
+
+```toml
+# native/codex-napi/Cargo.toml
+[dependencies]
+codex-core = { path = "/Users/greg/Dev/git/codex/codex-rs/core" }
+codex-protocol = { path = "/Users/greg/Dev/git/codex/codex-rs/protocol" }
+```
+
+**Benefits:**
+- Uses latest local codex-rs development version
+- Avoids git version lag and protocol mismatches
+- Enables access to cutting-edge features
+- Ensures CLI behavior parity
+
+### 8. Testing Strategy
+
+#### Version Validation in Tests
+
+Tests verify the version system at multiple levels:
+
+```typescript
+// Unit tests for version functions
+describe('getCodexCliVersion', () => {
+  it('returns the version from the native module', () => {
+    const version = getCodexCliVersion();
+    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+});
+
+// Integration tests verify rate limit injection
+it('should include rate limits in TokenCount events', async () => {
+  const event = await waitForTokenCountEvent();
+  expect(event.rate_limits).toBeDefined();
+  expect(event.rate_limits.primary.used_percent).toBeGreaterThanOrEqual(0);
+});
+```
+
+**Test Categories:**
+- **Unit**: Mock native module for isolated version testing
+- **Integration**: Real native module with rate limit verification
+- **Live**: End-to-end with actual OpenAI API responses
+
+This version management system ensures the SDK maintains perfect compatibility with the Codex CLI while enabling development flexibility and feature parity.
+
 ## Security Considerations
 
 ### Sandbox Policies
@@ -247,9 +457,9 @@ User Code Event Handler
 ## Deployment Considerations
 
 ### Module Resolution
-1. Environment variable: `CODEX_NATIVE_MODULE`
-2. Relative path: `../native/codex-napi/index.node`
-3. Package path: `@flo-ai/codex-ts-sdk/native/codex-napi/index.node`
+1. Explicit override via `nativeModulePath` in the client configuration
+2. Project-local build at `./native/codex-napi/index.{js|node}`
+3. Platform prebuild under `./native/codex-napi/prebuilt/<platform>/`
 
 ### Runtime Requirements
 - Node.js >= 18

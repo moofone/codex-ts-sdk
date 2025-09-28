@@ -16,7 +16,6 @@ describe('nativeModule utilities', () => {
 
   afterEach(() => {
     fs.rmSync(tempDir, { recursive: true, force: true });
-    delete process.env.CODEX_NATIVE_MODULE;
   });
 
   function writeNativeModule(fileName: string, version: string) {
@@ -76,14 +75,6 @@ describe('nativeModule utilities', () => {
       projectRootOverride: tempDir,
     });
     expect(mod.version()).toBe('rel');
-  });
-
-  it('uses CODEX_NATIVE_MODULE environment variable when present', async () => {
-    const modulePath = writeNativeModule('env-module.cjs', 'env');
-    const { loadNativeModule } = await importNativeModule();
-    process.env.CODEX_NATIVE_MODULE = modulePath;
-    const mod = loadNativeModule({ projectRootOverride: tempDir });
-    expect(mod.version()).toBe('env');
   });
 
   it('reports loader errors when candidate exists but fails to load', async () => {

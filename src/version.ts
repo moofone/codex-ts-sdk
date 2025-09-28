@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { LoadNativeModuleOptions } from './internal/nativeModule';
 import { loadNativeModule } from './internal/nativeModule';
 
@@ -10,9 +11,26 @@ function normalizeVersion(raw: string): string {
 }
 
 export function getCodexCliVersion(options?: LoadNativeModuleOptions): string {
-  const module = loadNativeModule(options);
-  if (typeof module.cliVersion !== 'function') {
-    throw new Error('Native module does not expose cliVersion(); rebuild codex-rs and the N-API binding.');
+  const attempt = (opts: LoadNativeModuleOptions | undefined) => {
+    const module = loadNativeModule(opts);
+    if (typeof module.cliVersion !== 'function') {
+      throw new Error('Native module does not expose cliVersion(); rebuild codex-rs and the N-API binding.');
+    }
+    return normalizeVersion(module.cliVersion());
+  };
+
+  try {
+    return attempt(options);
+  } catch (primaryError) {
+    if (options?.modulePath) {
+      throw primaryError;
+    }
+
+    const fallbackPath = path.join(process.cwd(), 'native', 'codex-napi', 'index.js');
+    try {
+      return attempt({ ...options, modulePath: fallbackPath });
+    } catch (fallbackError) {
+      throw fallbackError;
+    }
   }
-  return normalizeVersion(module.cliVersion());
 }

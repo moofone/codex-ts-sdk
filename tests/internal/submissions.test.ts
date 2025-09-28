@@ -43,7 +43,7 @@ describe('submission helpers', () => {
         },
         model: 'gpt-5-codex',
         effort: 'medium',
-        summary: 'summary goes here',
+        summary: 'detailed',
       });
 
       expect(submission).toEqual({
@@ -61,7 +61,7 @@ describe('submission helpers', () => {
           },
           model: 'gpt-5-codex',
           effort: 'medium',
-          summary: 'summary goes here',
+          summary: 'detailed',
         },
       });
     });
@@ -183,4 +183,5 @@ describe('submission helpers', () => {
       });
     });
   });
+
 });

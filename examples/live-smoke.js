@@ -1,10 +1,3 @@
-import { fileURLToPath } from 'url';
-
-const nativeModulePath = fileURLToPath(new URL('../native/codex-napi/index.node', import.meta.url));
-if (!process.env.CODEX_NATIVE_MODULE) {
-  process.env.CODEX_NATIVE_MODULE = nativeModulePath;
-}
-
 const { CodexClient } = await import(new URL('../dist/cjs/src/index.js', import.meta.url));
 
 async function main() {

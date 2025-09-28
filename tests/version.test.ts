@@ -7,7 +7,7 @@ describe('getCodexCliVersion', () => {
     vi.restoreAllMocks();
   });
 
-  it('returns the CLI version from the native module', () => {
+  it('returns the version from the native module', () => {
     vi.spyOn(nativeModule, 'loadNativeModule').mockReturnValue({
       NativeCodex: class NativeCodex {},
       version: () => '0.1.0',

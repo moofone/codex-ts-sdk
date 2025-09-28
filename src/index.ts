@@ -12,6 +12,11 @@ export type {
   ReviewRequestSnakeCaseInput,
   SendUserTurnOptions,
   SendMessageOptions,
+  StatusResponse,
+  AccountInfo,
+  GetStatusOptions,
+  RateLimitStatusSummary,
+  RateLimitWindowStatus,
 } from './types/options';
 
 export type { CodexEvent } from './types/events';
@@ -26,8 +31,15 @@ export type {
   ExecApprovalRequestEventMessage,
   NotificationEventMessage,
   SessionConfiguredEventMessage,
+  SessionCreatedEventMessage,
   ShutdownCompleteEventMessage,
+  TaskCompleteEventMessage,
+  TaskStartedEventMessage,
+  TokenCountEventMessage,
   TurnContextEventMessage,
+  TurnCompletedEventMessage,
+  TurnStartedEventMessage,
+  TurnUsageSummary,
   ListCustomPromptsResponseEventMessage,
   McpListToolsResponseEventMessage,
   McpToolDefinition,

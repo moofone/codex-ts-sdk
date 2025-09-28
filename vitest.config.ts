@@ -15,6 +15,10 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     include: ['tests/**/*.test.ts'],
+    reporter: 'verbose',
+    env: {
+      CODEX_SKIP_VERSION_CHECK: '0',
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],

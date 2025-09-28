@@ -131,6 +131,9 @@ class NativeCodex {
 module.exports = {
   NativeCodex,
   version() {
-    return 'mock-version';
+    return '0.42.0';
+  },
+  cliVersion() {
+    return '0.42.0';
   },
 };

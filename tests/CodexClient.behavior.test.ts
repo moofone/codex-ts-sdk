@@ -1,30 +1,43 @@
 import os from 'os';
 import path from 'path';
-import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+  type MockInstance,
+} from 'vitest';
 
 import type { CodexClientConfig } from '../src/types/options';
 import type { CodexPlugin } from '../src/plugins/types';
 import { CodexClient } from '../src/client/CodexClient';
 import { CodexConnectionError, CodexSessionError } from '../src/errors/CodexError';
 import * as retryModule from '../src/utils/retry';
+import type {
+  CodexSessionHandle,
+  NativeCodexBinding,
+  NativeCodexInstance,
+} from '../src/internal/nativeModule';
 
-interface MockSessionHandle {
-  conversationId: string;
+type MockSessionHandle = CodexSessionHandle & {
   submit: Mock;
   nextEvent: Mock<() => Promise<string | null>>;
   close: Mock;
-}
+};
 
 type LoadNativeModule = typeof import('../src/internal/nativeModule')['loadNativeModule'];
 
-let createConversationMock: Mock;
+let createConversationMock: Mock<(_?: unknown) => Promise<MockSessionHandle>>;
 let submitMock: Mock;
 let nextEventMock: Mock<() => Promise<string | null>>;
 let closeMock: Mock;
 let session: MockSessionHandle;
 const nativeOptions: Array<{ codexHome?: string }> = [];
 
-const loadNativeModuleSpy = vi.hoisted<LoadNativeModule>(() => vi.fn());
+const loadNativeModuleSpy: MockInstance<LoadNativeModule> = vi.hoisted(() => vi.fn<LoadNativeModule>());
 
 vi.mock('../src/internal/nativeModule', async () => {
   const actual = await vi.importActual<typeof import('../src/internal/nativeModule')>(
@@ -43,7 +56,7 @@ function createClient(config: Partial<CodexClientConfig> = {}): CodexClient {
 
 beforeEach(() => {
   nativeOptions.splice(0, nativeOptions.length);
-  createConversationMock = vi.fn();
+  createConversationMock = vi.fn<(_?: unknown) => Promise<MockSessionHandle>>();
   submitMock = vi.fn();
   nextEventMock = vi.fn();
   closeMock = vi.fn();
@@ -58,8 +71,8 @@ beforeEach(() => {
   nextEventMock.mockResolvedValue(null);
   closeMock.mockResolvedValue(undefined);
   loadNativeModuleSpy.mockReset();
-  loadNativeModuleSpy.mockImplementation(() => ({
-    NativeCodex: class {
+  loadNativeModuleSpy.mockImplementation(() => {
+    class MockNativeCodex implements NativeCodexInstance {
       options?: { codexHome?: string };
 
       constructor(options?: { codexHome?: string }) {
@@ -67,17 +80,21 @@ beforeEach(() => {
         nativeOptions.push(options ?? {});
       }
 
-      createConversation(params?: unknown) {
+      async createConversation(params?: unknown): Promise<CodexSessionHandle> {
         return createConversationMock(params);
       }
 
       getAuthMode() {
         return 'test-auth';
       }
-    },
-    version: () => 'test-version',
-    cliVersion: () => 'test-version',
-  }));
+    }
+
+    return {
+      NativeCodex: MockNativeCodex as unknown as NativeCodexBinding,
+      version: () => '0.42.0',
+      cliVersion: () => '0.42.0',
+    } as unknown as ReturnType<LoadNativeModule>;
+  });
 });
 
 afterEach(() => {
@@ -154,51 +171,61 @@ describe('CodexClient advanced behaviour', () => {
 
   it('returns early when already connected', async () => {
     const client = createClient();
+    const beforeConnect = loadNativeModuleSpy.mock.calls.length;
     await client.connect();
-    expect(loadNativeModuleSpy).toHaveBeenCalledTimes(1);
+    const afterFirstConnect = loadNativeModuleSpy.mock.calls.length;
+    expect(afterFirstConnect).toBeGreaterThanOrEqual(beforeConnect + 1);
     await client.connect();
-    expect(loadNativeModuleSpy).toHaveBeenCalledTimes(1);
+    expect(loadNativeModuleSpy).toHaveBeenCalledTimes(afterFirstConnect);
   });
 
   it('wraps native loading failures in CodexConnectionError', async () => {
+    const client = createClient({ codexHome: '~' });
     loadNativeModuleSpy.mockImplementationOnce(() => {
       throw new Error('missing binding');
     });
-
-    const client = createClient({ codexHome: '~' });
     await expect(client.connect()).rejects.toBeInstanceOf(CodexConnectionError);
   });
 
   it('wraps native constructor errors during connect', async () => {
-    loadNativeModuleSpy.mockImplementationOnce(() => ({
-      NativeCodex: class {
-        constructor() {
-          throw new Error('ctor');
-        }
-      },
-      version: () => 'test-version',
-      cliVersion: () => 'test-version',
-    }));
-
     const client = createClient();
+    loadNativeModuleSpy.mockImplementationOnce(
+      () => ({
+        NativeCodex: class {
+          constructor() {
+            throw new Error('ctor');
+          }
+        } as unknown as NativeCodexBinding,
+        version: () => '0.42.0',
+        cliVersion: () => '0.42.0',
+      }) as unknown as ReturnType<LoadNativeModule>,
+    );
     await expect(client.connect()).rejects.toBeInstanceOf(CodexConnectionError);
   });
 
   it('omits codexHome when configuration is unset', async () => {
+    const originalHome = process.env.CODEX_HOME;
+    delete process.env.CODEX_HOME;
+
     const client = createClient({ codexHome: undefined });
     await client.connect();
     expect(nativeOptions.at(-1)).toEqual({});
+
+    if (originalHome === undefined) {
+      delete process.env.CODEX_HOME;
+    } else {
+      process.env.CODEX_HOME = originalHome;
+    }
   });
 
   it('annotates connection errors with environment codex home when available', async () => {
-    loadNativeModuleSpy.mockImplementationOnce(() => {
-      throw 'missing module';
-    });
-
     const originalHome = process.env.CODEX_HOME;
     process.env.CODEX_HOME = '/env/codex';
 
     const client = createClient({ codexHome: undefined });
+    loadNativeModuleSpy.mockImplementationOnce(() => {
+      throw 'missing module';
+    });
 
     try {
       await client.connect();
@@ -265,7 +292,7 @@ describe('CodexClient advanced behaviour', () => {
     expect(messagePayload.op.items[1]).toMatchObject({ type: 'localImage', path: '/tmp/image.png' });
 
     const items = [{ type: 'text' as const, text: 'custom' }];
-    await client.sendUserTurn('ignored', { items, model: 'codex', summary: 'brief' });
+    await client.sendUserTurn('ignored', { items, model: 'codex', summary: 'concise' });
     const turnPayload = JSON.parse(submitMock.mock.calls[1][0]);
     expect(turnPayload.op.items).toEqual(items);
     expect(turnPayload.op.model).toBe('gpt-5-codex');

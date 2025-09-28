@@ -33,7 +33,10 @@ export function normalizeDirectory(dir: unknown): string | undefined {
   return typeof dir === 'string' ? dir : undefined;
 }
 
-const moduleUrl = resolveModuleUrl(Function, normalizeDirectory(__dirname));
+const moduleUrl = resolveModuleUrl(
+  Function,
+  normalizeDirectory(typeof __dirname === 'string' ? __dirname : undefined),
+);
 
 const requireFromMeta = createRequire(moduleUrl);
 
@@ -150,7 +153,6 @@ export function loadNativeModule(options: LoadNativeModuleOptions = {}): CodexNa
   };
 
   addCandidate(options.modulePath);
-  addCandidate(process.env.CODEX_NATIVE_MODULE);
 
   for (const candidate of candidatePaths(projectRoot)) {
     addCandidate(candidate);
