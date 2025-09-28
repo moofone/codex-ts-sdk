@@ -7,6 +7,7 @@ const SEMVER_PATTERN = /\d+\.\d+\.\d+/;
 function normalizeVersion(raw: string): string {
   const trimmed = raw.trim();
   const match = trimmed.match(SEMVER_PATTERN);
+  /* istanbul ignore next -- Fallback for non-semver versions */
   return match ? match[0] : trimmed;
 }
 

@@ -67,7 +67,9 @@ function resolveCodexHome(configured?: string): string {
   }
 
   const systemHome = os.homedir();
+  /* istanbul ignore next -- Cannot mock os.homedir in ESM environment */
   if (!systemHome) {
+    /* istanbul ignore next */
     throw new CodexAuthError('Unable to determine home directory for Codex runtime');
   }
   return path.join(systemHome, '.codex');

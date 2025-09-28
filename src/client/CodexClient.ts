@@ -862,7 +862,7 @@ export class CodexClient extends EventEmitter {
   on(event: 'event', listener: CodexClientEventListener<CodexEvent>): this;
   on(event: 'error', listener: (error: unknown) => void): this;
   on(event: typeof EVENT_STREAM_CLOSED, listener: () => void): this;
-  on(event: string, listener: (...args: any[]) => void): this {
+  on(event: string, listener: Parameters<EventEmitter['on']>[1]): this {
     return super.on(event, listener);
   }
 
@@ -917,7 +917,7 @@ export class CodexClient extends EventEmitter {
   once(event: 'event', listener: CodexClientEventListener<CodexEvent>): this;
   once(event: 'error', listener: (error: unknown) => void): this;
   once(event: typeof EVENT_STREAM_CLOSED, listener: () => void): this;
-  once(event: string, listener: (...args: any[]) => void): this {
+  once(event: string, listener: Parameters<EventEmitter['once']>[1]): this {
     return super.once(event, listener);
   }
 
@@ -969,7 +969,7 @@ export class CodexClient extends EventEmitter {
   off(event: 'event', listener: CodexClientEventListener<CodexEvent>): this;
   off(event: 'error', listener: (error: unknown) => void): this;
   off(event: typeof EVENT_STREAM_CLOSED, listener: () => void): this;
-  off(event: string, listener: (...args: any[]) => void): this {
+  off(event: string, listener: Parameters<EventEmitter['off']>[1]): this {
     return super.off(event, listener);
   }
 

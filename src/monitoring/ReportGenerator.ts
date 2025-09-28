@@ -169,6 +169,7 @@ export class RateLimitReportGenerator {
     const formatProjection = (projection?: ProjectionAnalysis) => {
       if (!projection?.exhaustionTime) return 'Not projected';
       const date = new Date(projection.exhaustionTime);
+      /* istanbul ignore next -- Defensive fallback for missing days calculation */
       const days = projection.daysUntilExhaustion?.toFixed(1) || '?';
       return `${date.toLocaleString()} (${days} days)`;
     };

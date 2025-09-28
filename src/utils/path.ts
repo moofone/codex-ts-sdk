@@ -12,6 +12,7 @@ export function expandHomePath(input: string): string {
   }
 
   const home = os.homedir();
+  /* istanbul ignore if -- Cannot mock os.homedir in ESM environment */
   if (!home) {
     return trimmed;
   }

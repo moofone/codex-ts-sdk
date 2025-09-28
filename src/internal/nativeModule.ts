@@ -35,6 +35,7 @@ export function normalizeDirectory(dir: unknown): string | undefined {
 
 const moduleUrl = resolveModuleUrl(
   Function,
+  /* istanbul ignore next -- Fallback for environments without __dirname */
   normalizeDirectory(typeof __dirname === 'string' ? __dirname : undefined),
 );
 

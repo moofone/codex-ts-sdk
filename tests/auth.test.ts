@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import os from 'os';
+import * as os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -155,4 +155,19 @@ describe('Live Authentication Integration', () => {
       }
     }
   }, 10000); // 10 second timeout for network operations
+
+  it('validates that loginWithApiKey creates auth.json correctly', () => {
+    const dir = createTempCodexHome();
+    try {
+      loginWithApiKey('sk-valid-test-key', { codexHome: dir });
+      const authPath = path.join(dir, 'auth.json');
+      expect(fs.existsSync(authPath)).toBe(true);
+      const content = JSON.parse(fs.readFileSync(authPath, 'utf-8'));
+      expect(content.openai_api_key).toBe('sk-valid-test-key');
+    } finally {
+      if (fs.existsSync(dir)) {
+        fs.rmSync(dir, { force: true, recursive: true });
+      }
+    }
+  });
 });

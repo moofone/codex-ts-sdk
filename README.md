@@ -66,7 +66,7 @@ for await (const event of client.events()) {
 }
 ```
 
-## Live Rate Limit Monitor
+## Example: Live Rate Limit Monitor
 
 Simple Bundled Example: Monitor your Plan-Based Codex rate limits with visual ASCII charts and usage projections:
 

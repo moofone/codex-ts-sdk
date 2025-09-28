@@ -158,4 +158,218 @@ describe('StatusStore', () => {
     const status = store.getStatus();
     expect(status.last_agent_message).toBe('1 + 1 = 2.');
   });
+
+  it('handles edge case time windows correctly', () => {
+    const store = new StatusStore();
+
+    // Test undefined window minutes (should default to 5h)
+    const eventWithUndefinedWindow: TokenCountEventMessage = {
+      type: 'token_count',
+      rate_limits: {
+        primary: {
+          used_percent: 50,
+          window_minutes: undefined as any,
+          resets_in_seconds: 3600,
+        },
+        secondary: {
+          used_percent: 30,
+          window_minutes: undefined as any,
+          resets_in_seconds: 86400,
+        },
+      },
+      info: {
+        total_token_usage: {
+          input_tokens: 100,
+          cached_input_tokens: 0,
+          output_tokens: 50,
+          reasoning_output_tokens: 0,
+          total_tokens: 150,
+        },
+        last_token_usage: {
+          input_tokens: 10,
+          cached_input_tokens: 0,
+          output_tokens: 5,
+          reasoning_output_tokens: 0,
+          total_tokens: 15,
+        },
+        model_context_window: 32000,
+      },
+    };
+
+    store.updateFromTokenCountEvent(eventWithUndefinedWindow);
+    const status = store.getStatus();
+
+    // Should use default values when window_minutes is undefined
+    expect(status.rate_limits.primary).toBeDefined();
+    expect(status.rate_limits.secondary).toBeDefined();
+    // The window_minutes being undefined should still result in valid rate limits
+    expect(status.rate_limit_windows?.primary?.short_label).toBe('5h');
+    expect(status.rate_limit_windows?.secondary?.short_label).toBe('5h');
+  });
+
+  it('handles monthly and annual time windows', () => {
+    const store = new StatusStore();
+
+    // Test monthly window (30 days + small bias)
+    const monthlyEvent: TokenCountEventMessage = {
+      type: 'token_count',
+      rate_limits: {
+        primary: {
+          used_percent: 25,
+          window_minutes: 30 * 24 * 60, // 30 days
+          resets_in_seconds: 30 * 24 * 3600,
+        },
+        secondary: {
+          used_percent: 15,
+          window_minutes: 30 * 24 * 60 + 2, // Just under the 30 day + 3 minute threshold
+          resets_in_seconds: 30 * 24 * 3600,
+        },
+      },
+      info: {
+        total_token_usage: {
+          input_tokens: 1000,
+          cached_input_tokens: 100,
+          output_tokens: 500,
+          reasoning_output_tokens: 50,
+          total_tokens: 1650,
+        },
+        last_token_usage: {
+          input_tokens: 50,
+          cached_input_tokens: 5,
+          output_tokens: 25,
+          reasoning_output_tokens: 2,
+          total_tokens: 82,
+        },
+        model_context_window: 128000,
+      },
+    };
+
+    store.updateFromTokenCountEvent(monthlyEvent);
+    let status = store.getStatus();
+    expect(status.rate_limit_windows?.primary?.label).toBe('Monthly limit');
+    expect(status.rate_limit_windows?.secondary?.label).toBe('Monthly limit');
+
+    // Test annual window (365 days)
+    const annualEvent: TokenCountEventMessage = {
+      type: 'token_count',
+      rate_limits: {
+        primary: {
+          used_percent: 10,
+          window_minutes: 365 * 24 * 60, // 365 days
+          resets_in_seconds: 365 * 24 * 3600,
+        },
+        secondary: {
+          used_percent: 5,
+          window_minutes: 400 * 24 * 60, // More than a year
+          resets_in_seconds: 400 * 24 * 3600,
+        },
+      },
+      info: {
+        total_token_usage: {
+          input_tokens: 10000,
+          cached_input_tokens: 1000,
+          output_tokens: 5000,
+          reasoning_output_tokens: 500,
+          total_tokens: 16500,
+        },
+        last_token_usage: {
+          input_tokens: 100,
+          cached_input_tokens: 10,
+          output_tokens: 50,
+          reasoning_output_tokens: 5,
+          total_tokens: 165,
+        },
+        model_context_window: 256000,
+      },
+    };
+
+    store.updateFromTokenCountEvent(annualEvent);
+    status = store.getStatus();
+    expect(status.rate_limit_windows?.primary?.label).toBe('Annual limit');
+    expect(status.rate_limit_windows?.secondary?.label).toBe('Annual limit');
+  });
+
+  it('handles edge case for window label capitalization', () => {
+    const store = new StatusStore();
+
+    // Test with numeric window (hours)
+    const numericWindowEvent: TokenCountEventMessage = {
+      type: 'token_count',
+      rate_limits: {
+        primary: {
+          used_percent: 35,
+          window_minutes: 120, // 2 hours
+          resets_in_seconds: 7200,
+        },
+        secondary: {
+          used_percent: 20,
+          window_minutes: 180, // 3 hours
+          resets_in_seconds: 10800,
+        },
+      },
+      info: {
+        total_token_usage: {
+          input_tokens: 200,
+          cached_input_tokens: 20,
+          output_tokens: 100,
+          reasoning_output_tokens: 10,
+          total_tokens: 330,
+        },
+        last_token_usage: {
+          input_tokens: 20,
+          cached_input_tokens: 2,
+          output_tokens: 10,
+          reasoning_output_tokens: 1,
+          total_tokens: 33,
+        },
+        model_context_window: 64000,
+      },
+    };
+
+    store.updateFromTokenCountEvent(numericWindowEvent);
+    const status = store.getStatus();
+
+    // Numeric labels like "2h" should not be capitalized
+    expect(status.rate_limit_windows?.primary?.short_label).toBe('2h');
+    expect(status.rate_limit_windows?.secondary?.short_label).toBe('3h');
+
+    // Test with weekly window (should be capitalized)
+    const weeklyEvent: TokenCountEventMessage = {
+      type: 'token_count',
+      rate_limits: {
+        primary: {
+          used_percent: 45,
+          window_minutes: 7 * 24 * 60, // 1 week
+          resets_in_seconds: 7 * 24 * 3600,
+        },
+        secondary: {
+          used_percent: 30,
+          window_minutes: 7 * 24 * 60 + 2, // Just under the weekly + 3 minute threshold
+          resets_in_seconds: 7 * 24 * 3600,
+        },
+      },
+      info: {
+        total_token_usage: {
+          input_tokens: 500,
+          cached_input_tokens: 50,
+          output_tokens: 250,
+          reasoning_output_tokens: 25,
+          total_tokens: 825,
+        },
+        last_token_usage: {
+          input_tokens: 25,
+          cached_input_tokens: 2,
+          output_tokens: 12,
+          reasoning_output_tokens: 1,
+          total_tokens: 40,
+        },
+        model_context_window: 128000,
+      },
+    };
+
+    store.updateFromTokenCountEvent(weeklyEvent);
+    const weeklyStatus = store.getStatus();
+    expect(weeklyStatus.rate_limit_windows?.primary?.label).toBe('Weekly limit');
+    expect(weeklyStatus.rate_limit_windows?.secondary?.label).toBe('Weekly limit');
+  });
 });
