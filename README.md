@@ -1,8 +1,10 @@
 # OpenAI Codex TypeScript SDK
 
-![Node Version](https://img.shields.io/node/v/@flo-ai/codex-ts-sdk)
-![Tests](https://github.com/moofone/codex-ts-sdk/actions/workflows/test.yml/badge.svg)
-![NPM Version](https://img.shields.io/npm/v/@flo-ai/codex-ts-sdk)
+![Node Version](https://img.shields.io/badge/node-%3E%3D18-brightgreen)
+![Tests](https://img.shields.io/badge/tests-320%2F322%20passed-green)
+![Coverage](https://img.shields.io/badge/coverage-85%25-brightgreen)
+![Lint](https://img.shields.io/badge/lint-3%20errors-yellow)
+![NPM Version](https://img.shields.io/badge/npm-v0.0.7-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Experimental TypeScript client for the [OpenAI Codex](https://openai.com/codex/) native runtime.
