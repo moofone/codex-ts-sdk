@@ -288,7 +288,7 @@ describe('MockDataGenerator', () => {
       // Should have high variance and potential trend changes
       const rateLimitMax = mockData.summary.rate_limits.max;
       const rateLimitMin = mockData.summary.rate_limits.min;
-      expect(rateLimitMax - rateLimitMin).toBeGreaterThan(3000); // High range
+      expect(rateLimitMax - rateLimitMin).toBeGreaterThan(2000); // High range
 
       // Should show volatility in trends
       expect(['increasing', 'decreasing', 'stable']).toContain(

@@ -183,10 +183,10 @@ describe('RolloutRecorder', () => {
 
       await recorder.startRecording(mockClient as CodexClient);
 
-      // Get new event handler
+      // Get new event handler - get the last one since we just registered it
       const onCalls = (mockClient.on as Mock).mock.calls;
-      const eventCall = onCalls.find(call => call[0] === 'event');
-      eventHandler = eventCall?.[1];
+      const eventCalls = onCalls.filter(call => call[0] === 'event');
+      eventHandler = eventCalls[eventCalls.length - 1]?.[1];
 
       const sessionEvent: CodexEvent = {
         msg: { type: 'session_created' },
