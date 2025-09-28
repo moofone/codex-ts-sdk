@@ -1,11 +1,10 @@
 # OpenAI Codex TypeScript SDK
 
-![Node Version](https://img.shields.io/badge/node-%3E%3D18-brightgreen)
-![Tests](https://img.shields.io/badge/tests-321%2F322%20passed-brightgreen)
-![Coverage](https://img.shields.io/badge/coverage-85%25-brightgreen)
-![Lint](https://img.shields.io/badge/lint-3%20errors-yellow)
-![NPM Version](https://img.shields.io/badge/npm-v0.0.7-orange)
-![License](https://img.shields.io/badge/license-MIT-green)
+[![Node Version](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
+[![Tests](https://github.com/moofone/codex-ts-sdk/actions/workflows/test.yml/badge.svg)](https://github.com/moofone/codex-ts-sdk/actions/workflows/test.yml)
+[![Coverage](https://codecov.io/gh/moofone/codex-ts-sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/moofone/codex-ts-sdk)
+[![NPM Version](https://img.shields.io/npm/v/codex-ts-sdk)](https://www.npmjs.com/package/codex-ts-sdk)
+[![License](https://img.shields.io/github/license/moofone/codex-ts-sdk)](LICENSE)
 
 Experimental TypeScript client for the [OpenAI Codex](https://openai.com/codex/) native runtime.
 
