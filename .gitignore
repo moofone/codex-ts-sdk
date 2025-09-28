@@ -17,6 +17,13 @@ coverage/
 native/prebuilt/
 native/codex-napi/
 
+# Native binaries & artifacts
+codex-cli
+codex-cli.exe
+*.dylib
+*.dll
+*.so
+
 # TypeScript
 *.tsbuildinfo
 
