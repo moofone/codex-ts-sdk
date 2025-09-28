@@ -8,7 +8,7 @@
 
 Experimental TypeScript client for the [OpenAI Codex](https://openai.com/codex/) native runtime.
 
-No conflict with native codex cli!
+This will not conflict with Codex system CLI
 
 📖 **[Architecture Documentation](docs/architecture.md)** - Detailed system design and component overview
 
