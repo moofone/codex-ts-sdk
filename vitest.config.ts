@@ -7,9 +7,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   cacheDir: './.vitest',
   resolve: {
-    alias: {
-      'codex-ts-sdk': path.resolve(__dirname, 'src/index.ts'),
-    },
+    alias: [
+      // Ensure the subpath alias resolves before the root package alias
+      { find: /^codex-ts-sdk\/cloud$/, replacement: path.resolve(__dirname, 'src/cloud/index.ts') },
+      { find: /^codex-ts-sdk$/, replacement: path.resolve(__dirname, 'src/index.ts') },
+    ],
   },
   test: {
     environment: 'node',

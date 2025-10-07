@@ -142,6 +142,34 @@ console.log('Step 4: Building native N-API binding...');
 const nativeBindingDir = join(projectRoot, 'native', 'codex-napi');
 const indexNodePath = join(nativeBindingDir, 'index.node');
 
+function updateNativeCargoTomlPaths() {
+  try {
+    // Determine codex-rs root from the located manifest
+    const codexRoot = path.dirname(workspaceManifestPath);
+    const corePath = join(codexRoot, 'core');
+    const protocolPath = join(codexRoot, 'protocol');
+    const cloudTasksClientPath = join(codexRoot, 'cloud-tasks-client');
+
+    const cargoTomlPath = join(nativeBindingDir, 'Cargo.toml');
+    let cargo = readFileSync(cargoTomlPath, 'utf8');
+
+    const esc = (p) => p.replace(/\\/g, '\\\\');
+
+    const before = cargo;
+    cargo = cargo
+      .replace(/codex-core\s*=\s*\{\s*path\s*=\s*"[^"]+"/g, `codex-core = { path = "${esc(corePath)}"`)
+      .replace(/codex-protocol\s*=\s*\{\s*path\s*=\s*"[^"]+"/g, `codex-protocol = { path = "${esc(protocolPath)}"`)
+      .replace(/codex-cloud-tasks-client\s*=\s*\{\s*path\s*=\s*"[^"]+"/g, `codex-cloud-tasks-client = { path = "${esc(cloudTasksClientPath)}"`);
+
+    if (cargo !== before) {
+      const { writeFileSync } = require('fs');
+      writeFileSync(cargoTomlPath, cargo, 'utf8');
+    }
+  } catch (e) {
+    console.warn('⚠️  Skipping Cargo.toml path rewrite:', e instanceof Error ? e.message : String(e));
+  }
+}
+
 function ensureIndexNodeAlias(forceCopy = false) {
   let candidates;
   try {
@@ -189,6 +217,8 @@ if (existsSync(indexNodePath)) {
 }
 
 try {
+  // Ensure native/Cargo.toml uses your CODEX_RUST_ROOT dependency paths
+  updateNativeCargoTomlPaths();
   const env = { ...process.env };
   if (isWindows) {
     env.CARGO_NET_GIT_FETCH_WITH_CLI = 'true';

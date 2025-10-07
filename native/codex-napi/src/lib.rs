@@ -5,8 +5,10 @@ use codex_core::config::{self, Config, ConfigOverrides};
 use codex_core::{CodexConversation, ConversationManager};
 use codex_core::protocol::{Event, EventMsg, Submission};
 use codex_core::AuthManager;
-use codex_protocol::mcp_protocol::ConversationId;
+use codex_protocol::ConversationId;
+use codex_protocol::protocol::SessionSource;
 use napi_derive::napi;
+pub mod cloud_tasks;
 
 struct SessionInner {
     conversation_id: ConversationId,
@@ -101,8 +103,8 @@ impl NativeCodex {
                 .map_err(|err| napi::Error::from_reason(err.to_string()))?
         };
 
-        let auth_manager = AuthManager::shared(codex_home);
-        let manager = ConversationManager::new(auth_manager);
+        let auth_manager = AuthManager::shared(codex_home, true);
+        let manager = ConversationManager::new(auth_manager, SessionSource::Mcp);
 
         Ok(Self {
             manager: Arc::new(manager),
@@ -120,6 +122,7 @@ impl NativeCodex {
         };
 
         let config = Config::load_with_cli_overrides(overrides, ConfigOverrides::default())
+            .await
             .map_err(|err| napi::Error::from_reason(err.to_string()))?;
 
         let new_conversation = self
