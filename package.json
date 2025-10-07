@@ -51,6 +51,11 @@
       "types": "./dist/types/src/bindings/index.d.ts",
       "import": "./dist/esm/src/bindings/index.js",
       "require": "./dist/cjs/src/bindings/index.js"
+    },
+    "./cloud": {
+      "types": "./dist/types/src/cloud/index.d.ts",
+      "import": "./dist/esm/src/cloud/index.js",
+      "require": "./dist/cjs/src/cloud/index.js"
     }
   },
   "files": [
@@ -60,7 +65,6 @@
     "native/README.md",
     "docs/",
     "examples/",
-    "scripts/",
     "CHANGELOG.md",
     "SECURITY.md",
     "README.md",
@@ -81,6 +85,8 @@
     "test:live:status": "node --enable-source-maps scripts/run-live-status.mjs",
     "test:monitoring": "vitest run --reporter=verbose tests/monitoring/",
     "test:persistence": "vitest run --reporter=verbose tests/persistence/",
+    "test:cloud:list": "vitest run --reporter=verbose tests/live/cloud-list-tasks.test.ts",
+    "test:cloud:create": "vitest run --reporter=verbose tests/live/cloud-create-minimal.test.ts",
     "coverage": "vitest run --coverage",
     "build:native": "napi build --platform --manifest-path native/codex-napi/Cargo.toml",
     "package": "npm run build && npm run build:native",
@@ -96,6 +102,7 @@
     "@typescript-eslint/parser": "^8.43.0",
     "@vitest/coverage-v8": "^3.2.4",
     "@vitest/ui": "^3.2.4",
+    "msw": "^2.4.2",
     "eslint": "^9.35.0",
     "typedoc": "^0.25.13",
     "typescript": "^5.3.0",
@@ -113,8 +120,5 @@
         "dist/types/src/*"
       ]
     }
-  },
-  "dependencies": {
-    "playwright": "^1.55.1"
   }
 }

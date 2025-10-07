@@ -1,10 +1,10 @@
 # OpenAI Codex TypeScript SDK
 
 [![Node Version](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
-[![CI Status](https://github.com/moofone/codex-ts-sdk/actions/workflows/test.yml/badge.svg)](https://github.com/moofone/codex-ts-sdk/actions/workflows/test.yml)
-[![Tests](https://img.shields.io/badge/tests-446%20passed-brightgreen)](https://github.com/moofone/codex-ts-sdk)
-[![Coverage](https://img.shields.io/badge/coverage-94.74%25-brightgreen)](https://github.com/moofone/codex-ts-sdk)
-[![NPM Version](https://img.shields.io/badge/npm-v0.0.7-orange)](https://github.com/moofone/codex-ts-sdk)
+[![Build Status](https://github.com/flo-ai/codex-ts-sdk/actions/workflows/test.yml/badge.svg)](https://github.com/flo-ai/codex-ts-sdk/actions/workflows/test.yml)
+[![Tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/flo-ai/3e794dfbb91f3f79f2e3b501b179372c/raw/codex-ts-sdk-tests.json)](https://github.com/flo-ai/codex-ts-sdk)
+[![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/flo-ai/3e794dfbb91f3f79f2e3b501b179372c/raw/codex-ts-sdk-coverage.json)](https://github.com/flo-ai/codex-ts-sdk)
+[![NPM Version](https://img.shields.io/badge/npm-v0.0.7-orange)](https://github.com/flo-ai/codex-ts-sdk)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 Experimental TypeScript client for the [OpenAI Codex](https://openai.com/codex/) native runtime.
@@ -16,6 +16,7 @@ This will not conflict with Codex system CLI
 ## Key Features
 
 - **Native Rust Integration** – Direct NAPI bindings to codex-rs for maximum performance and CLI compatibility
+- **Cloud Tasks (NEW v0.1.0)** – Remote code generation with best-of-N attempts and local patch application
 - **Multi-Conversation Management** – Orchestrate concurrent conversations with automatic lifecycle management and resumption
 - **Session Persistence & Replay** – Record conversations to JSONL/JSON and resume from any point with full state restoration
 - **Real-Time Rate Monitoring** – Live rate limit tracking with visual progress indicators and usage projections
@@ -24,7 +25,11 @@ This will not conflict with Codex system CLI
 
 ## Version Matching
 
-This requires using codex-rs release tag (for example `rust-v0.42.0` from https://github.com/openai/codex/tags) Do not use main branch! Explained in architecture.md the reason why. 
+This SDK requires a specific codex-rs release tag from https://github.com/openai/codex/tags:
+- **v0.0.7**: Use `rust-v0.42.0` for core features
+- **v0.1.0+**: Use `rust-v0.45.0` or later for cloud tasks support
+
+⚠️ Do not use the main branch! See [architecture.md](docs/architecture.md) for details. 
 
 ## Prerequisites
 
@@ -100,6 +105,83 @@ loginWithApiKey(process.env.OPENAI_API_KEY!, { codexHome: process.env.CODEX_HOME
 ```
 
 If you prefer the browser-based ChatGPT OAuth flow, run `codex login` from the CLI instead.
+
+## Cloud Tasks (Remote Code Generation)
+
+**NEW in v0.1.0**: Manage remote Codex tasks for code generation workflows.
+
+Cloud tasks enable you to submit prompts to a cloud backend, execute code generation remotely, and retrieve/apply the results locally. Perfect for distributed teams and cloud-based development workflows.
+
+### Quick Example
+
+```ts
+import { CloudTasksClientBuilder } from 'codex-ts-sdk/cloud';
+
+const client = new CloudTasksClientBuilder()
+  // baseUrl optional; defaults to process.env.CODEX_CLOUD_TASKS_BASE_URL
+  // or 'https://chatgpt.com/backend-api' (codex-rs default)
+  .withBearerToken(process.env.OPENAI_API_KEY!)
+  .build();
+
+// Create a remote task
+const task = await client.createTask({
+  environmentId: 'prod',
+  prompt: 'Add error handling to the authentication endpoints',
+  gitRef: 'main',
+  bestOfN: 3, // Generate 3 attempts, select the best
+});
+
+console.log(`Task created: ${task.id}`);
+
+// Wait for completion (poll)
+let tasks;
+do {
+  tasks = await client.listTasks({ limit: 1 });
+  await new Promise(resolve => setTimeout(resolve, 2000));
+} while (tasks[0]?.status === 'pending');
+
+// Get the generated diff
+const diff = await client.getTaskDiff(task.id);
+console.log('Generated changes:', diff);
+
+// Preview before applying
+const preflight = await client.applyTaskPreflight(task.id);
+if (preflight.status === 'success') {
+  // Apply to local working tree
+  const result = await client.applyTask(task.id);
+  console.log(result.message);
+} else {
+  console.warn('Conflicts detected:', preflight.conflictPaths);
+}
+
+client.close();
+```
+
+### Features
+
+- **Remote Execution** – Submit prompts to cloud infrastructure, retrieve results
+- **Best-of-N** – Generate multiple solution attempts, compare and select the best
+- **Diff Management** – Retrieve unified diffs and apply them locally with conflict detection
+- **Multi-Environment** – Organize tasks across different environments (prod, staging, dev)
+- **Preflight Validation** – Dry-run patch application before modifying files
+
+### Examples
+
+```bash
+# Basic task management
+node examples/cloud-tasks-basic.cjs
+
+# Best-of-N workflow with multiple attempts
+node examples/cloud-tasks-best-of-n.cjs
+
+# Safe patch application with conflict handling
+node examples/cloud-tasks-apply.cjs
+```
+
+### Documentation
+
+- 📖 [Cloud Tasks API Reference](docs/cloud-tasks.md) - Complete API documentation
+- 📋 [Migration Guide](docs/CLOUD_MIGRATION.md) - Upgrading from v0.0.7
 
 ## Development Scripts
 

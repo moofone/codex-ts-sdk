@@ -1,0 +1,65 @@
+name: Dynamic Badges
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test-and-badge:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        id: tests
+        run: |
+          npm test 2>&1 | tee test-output.txt || true
+          TESTS_PASSED=$(grep -oE '[0-9]+ passed' test-output.txt | grep -oE '[0-9]+' | tail -1 || echo "0")
+          TESTS_FAILED=$(grep -oE '[0-9]+ failed' test-output.txt | grep -oE '[0-9]+' | tail -1 || echo "0")
+          TESTS_TOTAL=$((TESTS_PASSED + TESTS_FAILED))
+
+          echo "passed=$TESTS_PASSED" >> $GITHUB_OUTPUT
+          echo "failed=$TESTS_FAILED" >> $GITHUB_OUTPUT
+          echo "total=$TESTS_TOTAL" >> $GITHUB_OUTPUT
+
+      - name: Run coverage
+        id: coverage
+        run: |
+          npm run coverage 2>&1 | tee coverage-output.txt || true
+          COVERAGE=$(grep -oE 'lines.*[0-9]+\.[0-9]+%' coverage-output.txt | grep -oE '[0-9]+\.[0-9]+' | head -1 || echo "0")
+
+          echo "percentage=$COVERAGE" >> $GITHUB_OUTPUT
+
+      - name: Create test badge
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_TOKEN }}
+          gistID: ${{ secrets.GIST_ID }}
+          filename: codex-ts-sdk-tests.json
+          label: tests
+          message: ${{ steps.tests.outputs.passed }}/${{ steps.tests.outputs.total }}
+          color: ${{ steps.tests.outputs.failed == '0' && 'brightgreen' || 'red' }}
+
+      - name: Create coverage badge
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_TOKEN }}
+          gistID: ${{ secrets.GIST_ID }}
+          filename: codex-ts-sdk-coverage.json
+          label: coverage
+          message: ${{ steps.coverage.outputs.percentage }}%
+          color: ${{ steps.coverage.outputs.percentage >= 90 && 'brightgreen' || steps.coverage.outputs.percentage >= 80 && 'yellow' || 'red' }}

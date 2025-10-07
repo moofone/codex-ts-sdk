@@ -488,7 +488,7 @@ function generateHtml(dataPoints, analysis) {
     </section>
 
 
-    <footer>Made with <a href="https://github.com/moofone/codex-ts-sdk" target="_blank" style="color: ${colors.primary}; text-decoration: none;">codex-ts-sdk</a></footer>
+    <footer>Made with codex-ts-sdk</footer>
   </div>
 
   <script>

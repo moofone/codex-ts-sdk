@@ -12,6 +12,7 @@ lerna-debug.log*
 # Build artefacts
 dist/
 coverage/
+coverage_full.txt
 .vitest/
 *.node
 native/prebuilt/
@@ -35,3 +36,5 @@ codex-cli.exe
 .idea/
 .vscode/
 tmp/
+.playwright-mcp/
+monitoring-data.json

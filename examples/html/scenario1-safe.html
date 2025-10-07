@@ -30,9 +30,9 @@
     .stat-item { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.95rem; }
     .stat-label { color: #666666; }
     .stat-value { font-weight: 600; }
-    .title-container { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .title-container { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
     .plan-label { background-color: #2c2c2c; color: #f5f5f5; padding: 2px 10px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-    footer { text-align: center; color: #666666; padding-top: 16px; border-top: 1px solid #2c2c2c; }
+    footer { text-align: center; color: #666666; padding-top: 4px; }
   </style>
 </head>
 <body>
@@ -40,8 +40,7 @@
     <section>
       <div class="title-container">
         <h2>Codex Usage</h2>
-        <p style="font-size: 0.75rem; color: #1f1f1f; margin-top: -0.5rem;">Plan: Pro</p>
-        <span class="plan-label">Pro</span>
+        <span class="plan-label">PRO</span>
       </div>
       <div class="chart-wrapper">
         <canvas id="scenarioChart" height="360"></canvas>
@@ -49,7 +48,7 @@
     </section>
 
 
-    <footer>Made with <a href="https://github.com/moofone/codex-ts-sdk" target="_blank" style="color: #4fc3f7; text-decoration: none;">codex-ts-sdk</a></footer>
+    <footer>Made with <a href="https://github.com/flo-ai/codex-ts-sdk" target="_blank" style="color: #4fc3f7; text-decoration: none;">codex-ts-sdk</a></footer>
   </div>
 
   <script>
