@@ -1,11 +1,9 @@
 # OpenAI Codex TypeScript SDK
 
-[![Node Version](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
-[![Build Status](https://github.com/flo-ai/codex-ts-sdk/actions/workflows/test.yml/badge.svg)](https://github.com/flo-ai/codex-ts-sdk/actions/workflows/test.yml)
-[![Tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/flo-ai/3e794dfbb91f3f79f2e3b501b179372c/raw/codex-ts-sdk-tests.json)](https://github.com/flo-ai/codex-ts-sdk)
-[![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/flo-ai/3e794dfbb91f3f79f2e3b501b179372c/raw/codex-ts-sdk-coverage.json)](https://github.com/flo-ai/codex-ts-sdk)
-[![NPM Version](https://img.shields.io/badge/npm-v0.0.7-orange)](https://github.com/flo-ai/codex-ts-sdk)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Node Version](https://img.shields.io/node/v/@flo-ai/codex-ts-sdk?label=node&logo=node.js)](https://nodejs.org)
+[![Tests](https://img.shields.io/github/actions/workflow/status/flo-ai/codex-ts-sdk/test.yml?branch=main&label=tests&logo=github)](https://github.com/flo-ai/codex-ts-sdk/actions/workflows/test.yml)
+[![NPM Version](https://img.shields.io/npm/v/@flo-ai/codex-ts-sdk?logo=npm)](https://www.npmjs.com/package/@flo-ai/codex-ts-sdk)
+[![License](https://img.shields.io/github/license/flo-ai/codex-ts-sdk)](LICENSE)
 
 Experimental TypeScript client for the [OpenAI Codex](https://openai.com/codex/) native runtime.
 

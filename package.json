@@ -71,6 +71,7 @@
     "LICENSE"
   ],
   "scripts": {
+    "prepare": "node scripts/prepare.cjs",
     "setup": "node scripts/setup.cjs",
     "clean": "rm -rf dist",
     "build": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types && node scripts/write-cjs-package-json.cjs",

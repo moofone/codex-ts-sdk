@@ -48,6 +48,17 @@ This table comprehensively maps all features available in the Rust CLI (`codex-r
 | Review Request             | `ReviewRequest`             | ❌          | MISSING                       | No direct review API   |
 | Shutdown Request           | `Shutdown`                  | ✅          | `client.shutdown()`           | Clean termination      |
 | Interrupt Request          | `InterruptConversation`     | ✅          | `client.interrupt()`          | Turn interruption      |
+| **Cloud Tasks & Environments**  |
+| Task Listing               | `codex cloud tasks list`    | ✅          | `CloudTasksClient.listTasks()` | Remote task catalog    |
+| Task Creation              | `codex cloud tasks create`  | ✅          | `CloudTasksClient.createTask()` | Remote prompt submit   |
+| Task Diff Retrieval        | `codex cloud tasks diff`    | ✅          | `CloudTasksClient.getTaskDiff()` | Unified diff access    |
+| Task Messages              | `codex cloud tasks messages`| ✅          | `CloudTasksClient.getTaskMessages()` | Assistant output       |
+| Task Text Details          | `codex cloud tasks text`    | ✅          | `CloudTasksClient.getTaskText()` | Prompt + metadata      |
+| Apply Preflight (Dry Run)  | `codex cloud tasks apply --dry-run` | ✅ | `CloudTasksClient.applyTaskPreflight()` | Conflict detection     |
+| Apply Patch                | `codex cloud tasks apply`   | ✅          | `CloudTasksClient.applyTask()` | Working tree updates   |
+| Sibling Attempts           | `codex cloud tasks attempts`| ✅          | `CloudTasksClient.listSiblingAttempts()` | Best-of-N review       |
+| List Environments          | `codex cloud env list`      | ✅          | `CloudTasksClient.listEnvironments()` | Environment catalog    |
+| Resolve Environment        | `codex cloud env resolve`   | ✅          | `CloudTasksClient.resolveEnvironmentId()` | Label → ID resolution  |
 | **Event Message Types**    |
 | Session Created            | `SessionCreated`            | ✅          | Event stream                  | Session lifecycle      |
 | Session Configured         | `SessionConfigured`         | ✅          | Event stream                  | Configuration          |
@@ -104,12 +115,12 @@ This table comprehensively maps all features available in the Rust CLI (`codex-r
 
 ### Coverage Summary
 
-- **Total Features Identified**: 63
-- **Directly Implemented**: 31 (49%)
-- **Missing**: 31 (49%)
-- **Intentionally Excluded**: 1 (2%)
+- **Total Features Identified**: 73
+- **Directly Implemented**: 41 (56%)
+- **Missing**: 31 (42%)
+- **Intentionally Excluded**: 1 (1%)
 
-**Functional Coverage**: 49% (31/63 features directly available)
+**Functional Coverage**: 56% (41/73 features directly available)
 
 ### Key Gaps Identified
 
@@ -144,18 +155,21 @@ The Codex TypeScript SDK is a sophisticated client library that provides TypeScr
 │                   TypeScript SDK Layer                   │
 │  ┌──────────────────────────────────────────────────┐  │
 │  │                 Public API Surface                │  │
-│  │  • CodexClient   • CodexClientBuilder             │  │
-│  │  • CodexClientPool  • Event Types                 │  │
+│  │  • CodexClient        • CodexClientBuilder        │  │
+│  │  • CodexClientPool    • Event Types               │  │
+│  │  • CloudTasksClient   • CloudTasksClientBuilder   │  │
 │  └──────────────────────────────────────────────────┘  │
 │  ┌──────────────────────────────────────────────────┐  │
 │  │                 Internal Systems                  │  │
 │  │  • Submission Management  • Event Queue           │  │
 │  │  • Native Module Loader   • Error Handling        │  │
+│  │  • Cloud Task Bridge      • Environment Resolver  │  │
 │  └──────────────────────────────────────────────────┘  │
 │  ┌──────────────────────────────────────────────────┐  │
 │  │              Support Infrastructure               │  │
 │  │  • Plugin System    • Retry Logic                 │  │
 │  │  • Logger           • Model Resolution            │  │
+│  │  • Environment Catalog Cache                      │  │
 │  └──────────────────────────────────────────────────┘  │
 └─────────────────────┬───────────────────────────────────┘
                       │
@@ -314,6 +328,7 @@ The Codex TypeScript SDK is a sophisticated client library that provides TypeScr
 - **Rollout** (`rollout.ts`): Session persistence and replay data structures
 - **Resumption** (`resumption.ts`): Conversation resumption and validation types
 - **Monitoring** (`monitoring.ts`): 42-point monitoring system definitions
+- **Cloud Tasks** (`cloud-tasks.ts`): Remote task lifecycle, environment metadata, apply outcomes
 
 #### Legacy Types
 - **Options** (`options.ts`): Configuration interfaces for client setup
@@ -324,7 +339,47 @@ The Codex TypeScript SDK is a sophisticated client library that provides TypeScr
 - Protocol message definitions
 - Ensures type safety across language boundary
 
-### 6. Plugin System (`src/plugins/`)
+### 6. Cloud Tasks Layer (`src/cloud/`)
+
+#### CloudTasksClient (`CloudTasksClient.ts`)
+- **Purpose**: Remote task orchestration against the Codex cloud backend
+- **Key Responsibilities**:
+  - Normalize credentials/base URLs and bridge to native bindings
+  - Retrieve cloud task artifacts: summaries, diffs, messages, and full text
+  - Manage task lifecycle actions including best-of-N attempt review
+  - Apply diffs safely via `applyTaskPreflight()` and `applyTask()`
+  - Surface environment-aware APIs: `listEnvironments()` and `resolveEnvironmentId()`
+- **Key Methods**:
+  - `listTasks(options)`: Enumerates remote tasks with optional environment filtering
+  - `createTask(options)`: Submits prompts for remote execution
+  - `getTaskDiff()` / `getTaskMessages()` / `getTaskText()`: Materialize task output
+  - `applyTaskPreflight()` / `applyTask()`: Validate and apply patches locally
+  - `listSiblingAttempts()`: Inspect alternative best-of-N generations
+  - `listEnvironments()` / `resolveEnvironmentId()`: Discover and map cloud environments
+  - `close()`: Dispose native handles
+
+#### CloudTasksClientBuilder (`CloudTasksClientBuilder.ts`)
+- **Purpose**: Fluent configuration for CloudTasksClient construction
+- **Features**:
+  - Builder methods for base URL, bearer token, ChatGPT account ID, user agent, and mock mode
+  - Mirrors codex-rs defaults for base URL and mock toggles
+  - Ensures mutually exclusive auth modalities prior to instantiation
+
+#### Environment Discovery Fallback (`src/cloud/internal/envFallback.ts`)
+- **Purpose**: HTTP + local cache strategy for environment catalogs when native bindings lack support
+- **Key Features**:
+  - Mirrors codex TUI environment lookup with pinned-first ordering
+  - Supports GitHub repo scoped lookups and global catalog listing
+  - Robust parsing with graceful degradation and descriptive error messages
+
+#### Cloud Task Bindings (`src/cloud/internal/bindings.ts`, `src/cloud/internal/converters.ts`)
+- **Purpose**: Type-safe translation between TypeScript DTOs and native NAPI structures
+- **Responsibilities**:
+  - Provide native method handles for list/create/apply operations
+  - Convert snake_case payloads to camelCase SDK types
+  - Align environment identifiers across backend variants
+
+### 7. Plugin System (`src/plugins/`)
 
 #### Plugin Interface (`types.ts`)
 - **Lifecycle Hooks**:
@@ -332,7 +387,7 @@ The Codex TypeScript SDK is a sophisticated client library that provides TypeScr
   - `onEvent()`: Event interception and processing
   - `cleanup()`: Resource deallocation
 
-### 7. Utilities (`src/utils/`)
+### 8. Utilities (`src/utils/`)
 
 #### Logger (`logger.ts`)
 - Structured logging with partial implementation support
