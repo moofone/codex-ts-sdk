@@ -1,0 +1,31 @@
+/**
+ * Determines execution restrictions for model shell commands.
+ */
+export type SandboxPolicy = {
+    "mode": "danger-full-access";
+} | {
+    "mode": "read-only";
+} | {
+    "mode": "workspace-write";
+    /**
+     * Additional folders (beyond cwd and possibly TMPDIR) that should be
+     * writable from within the sandbox.
+     */
+    writable_roots?: Array<string>;
+    /**
+     * When set to `true`, outbound network access is allowed. `false` by
+     * default.
+     */
+    network_access: boolean;
+    /**
+     * When set to `true`, will NOT include the per-user `TMPDIR`
+     * environment variable among the default writable roots. Defaults to
+     * `false`.
+     */
+    exclude_tmpdir_env_var: boolean;
+    /**
+     * When set to `true`, will NOT include the `/tmp` among the default
+     * writable roots on UNIX. Defaults to `false`.
+     */
+    exclude_slash_tmp: boolean;
+};
