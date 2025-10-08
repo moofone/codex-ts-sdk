@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { CloudTasksClientBuilder } from '../../src/cloud/index.js';
 
 const LIVE_ENABLED = process.env.CLOUD_LIVE === '1';
+const DEFAULT_TEST_ENV_LABEL = process.env.TEST_ENV_LABEL_DEFAULT?.trim() || 'example/default-env';
 
 if (!LIVE_ENABLED) {
   console.warn('Skipping CloudTasks list tasks test: set CLOUD_LIVE=1 to enable.');
@@ -50,15 +51,31 @@ describeIf('Cloud Tasks - listTasks', () => {
       expect(limitedTasks.length).toBeLessThanOrEqual(3);
 
       // Test 3: List with environment filter (known to not work, but test it)
-      const testEnvFilter = process.env.TEST_ENV_LABEL || process.env.TEST_ENV_ID;
+      const envLabelOverride = process.env.TEST_ENV_LABEL?.trim();
+      const envIdOverride = process.env.TEST_ENV_ID?.trim();
+      const targetLabel = envLabelOverride || (envIdOverride ? undefined : DEFAULT_TEST_ENV_LABEL);
 
-      if (testEnvFilter) {
-        console.log(`\n3️⃣  listTasks({ environmentId: "${testEnvFilter}" })`);
+      let filterEnvironmentId: string | undefined = envIdOverride;
+
+      if (!filterEnvironmentId && targetLabel) {
+        const labelLogSuffix = envLabelOverride ? '' : ' (default)';
+        console.log(`\n3️⃣  Resolving environment label '${targetLabel}'${labelLogSuffix}`);
+        console.log('   ─'.repeat(40));
+        try {
+          filterEnvironmentId = await client.resolveEnvironmentId(targetLabel);
+          console.log(`   ✅ Resolved '${targetLabel}' → ${filterEnvironmentId}`);
+        } catch (error: any) {
+          console.log(`   ❌ Failed to resolve label '${targetLabel}': ${error.message}`);
+        }
+      }
+
+      if (filterEnvironmentId) {
+        console.log(`\n3️⃣  listTasks({ environmentId: "${filterEnvironmentId}" })`);
         console.log('   ⚠️  Note: Backend filtering is unreliable');
         console.log('   ─'.repeat(40));
 
         const envTasks = await client.listTasks({
-          environmentId: testEnvFilter,
+          environmentId: filterEnvironmentId,
           limit: 5
         });
         console.log(`   ✅ Retrieved ${envTasks.length} task(s)`);

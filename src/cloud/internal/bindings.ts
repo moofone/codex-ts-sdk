@@ -27,10 +27,14 @@ export interface CloudBindings {
   list(config: CloudTasksConfig, environmentId?: string): Promise<TaskSummaryNapi[]>;
   listEnvironments(config: CloudTasksConfig): Promise<EnvironmentRowNapi[]>;
   create(config: CloudTasksConfig, options: {
-    environment_id: string;
+    environmentId: string;
+    environment_id?: string;
     prompt: string;
-    git_ref: string;
+    gitRef: string;
+    git_ref?: string;
+    qaMode?: boolean;
     qa_mode?: boolean;
+    bestOfN?: number;
     best_of_n?: number;
   }): Promise<CreatedTask>;
   getDiff(config: CloudTasksConfig, taskId: string): Promise<string | null>;
@@ -83,7 +87,17 @@ export function getCloudBindings(): CloudBindings {
   ) => Promise<EnvironmentRowNapi[]>>('cloudTasksListEnvironments', 'cloud_tasks_list_environments');
   const cloudTasksCreate = pick<(
     config: CloudTasksConfig,
-    options: { environment_id: string; prompt: string; git_ref: string; qa_mode?: boolean; best_of_n?: number }
+    options: {
+      environmentId: string;
+      environment_id?: string;
+      prompt: string;
+      gitRef: string;
+      git_ref?: string;
+      qaMode?: boolean;
+      qa_mode?: boolean;
+      bestOfN?: number;
+      best_of_n?: number;
+    }
   ) => Promise<string>>('cloudTasksCreate', 'cloud_tasks_create');
   const cloudTasksGetDiff = pick<(
     config: CloudTasksConfig,

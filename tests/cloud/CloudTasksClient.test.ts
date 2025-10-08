@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ApplyOutcome } from '../../src/types/cloud-tasks';
 
 // Mock the internal bindings to provide a fake backend
+const DEFAULT_ENV_LABEL = 'example/default-env';
 const sampleTasks = [
   {
     id: 't1',
@@ -53,8 +54,8 @@ vi.mock('../../src/cloud/internal/bindings', () => {
   }));
   let listAttemptsImpl = vi.fn(async () => attempts);
   let listEnvironmentsImpl = vi.fn(async () => ([
-    { id: 'aaaabbbbccccdddd11112222333344445555', label: 'example/repo-one', is_pinned: true },
-    { id: 'eeeeffffgggghhhhiiiijjjjkkkkllll', label: 'example/repo-two' },
+    { id: 'aaaabbbbccccdddd11112222333344445555', label: DEFAULT_ENV_LABEL, is_pinned: true },
+    { id: 'eeeeffffgggghhhhiiiijjjjkkkkllll', label: 'example/secondary-env' },
   ]));
 
   return {
@@ -193,7 +194,7 @@ describe('CloudTasksClient (mock bindings)', () => {
     const client = new CloudTasksClient(base);
     const envs = await client.listEnvironments();
     expect(envs.length).toBeGreaterThan(0);
-    const id = await client.resolveEnvironmentId('example/repo-one');
+    const id = await client.resolveEnvironmentId(DEFAULT_ENV_LABEL);
     expect(id).toBe('aaaabbbbccccdddd11112222333344445555');
     client.close();
   });
