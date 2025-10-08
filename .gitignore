@@ -25,6 +25,7 @@ native/codex-napi/*
 !native/codex-napi/index.js
 !native/codex-napi/index.d.ts
 !native/codex-napi/src/
+!native/codex-napi/src/**
 native/codex-napi/target/
 
 # Native binaries & artifacts
