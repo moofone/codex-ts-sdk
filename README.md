@@ -33,24 +33,29 @@ This SDK requires a specific codex-rs release tag from https://github.com/openai
 
 ## Prerequisites
 
-The Rust toolkit is required for building the native bindings.https://rust-lang.org/tools/install
+The Rust toolkit is required for building the native bindings: https://rust-lang.org/tools/install
 
 ## Setup
 
-# Required environment variables
+### Required environment variables
+
 - `CODEX_RUST_ROOT=/absolute/path/to/codex/codex-rs` – points at the checked-out codex-rs release tag so `npm run setup` can read its version. Specifying this means the SDK will not conflict with any system-installed codex CLI. Once npm run setup is run, this is no longer required.
 - `CODEX_HOME=~/.codex` – tells the runtime where to store credentials and session data (the default is fine).
 
-MacOS/Linux: Depending on shell something like export CODEX_HOME="~/.codex"
-Windows PowerShell: `Set-Item env:CODEX_HOME "$env:USERPROFILE\.codex"`
+**Setting environment variables:**
+
+- **macOS/Linux**: `export CODEX_HOME="~/.codex"`
+- **Windows PowerShell**: `Set-Item env:CODEX_HOME "$env:USERPROFILE\.codex"`
+
+### Installation
 
 `npm run setup` installs dependencies, rebuilds the TypeScript bundle, recompiles the native binding, and verifies that the embedded version matches your codex checkout. The loader automatically uses the freshly compiled `native/codex-napi/index.node`, so there is no environment flag to manage afterward.
 
 Run the installer:
 
-   ```bash
-   npm run setup
- ```
+```bash
+npm run setup
+```
 
 ## Quickstart
 ```ts

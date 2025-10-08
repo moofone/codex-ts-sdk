@@ -16,7 +16,16 @@ coverage_full.txt
 .vitest/
 *.node
 native/prebuilt/
-native/codex-napi/
+
+# Native codex-napi - ignore everything except source files
+native/codex-napi/*
+!native/codex-napi/Cargo.toml
+!native/codex-napi/Cargo.lock
+!native/codex-napi/build.rs
+!native/codex-napi/index.js
+!native/codex-napi/index.d.ts
+!native/codex-napi/src/
+native/codex-napi/target/
 
 # Native binaries & artifacts
 codex-cli

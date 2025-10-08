@@ -11,6 +11,7 @@ import type {
 import { getCloudBindings, toNativeApplyParams, toNativeConfig } from './internal/bindings';
 import { toApplyOutcome, toTaskSummary, toTaskText, toTurnAttempt } from './internal/converters';
 import type { EnvironmentInfo } from '../types/cloud-tasks';
+import { listEnvironmentsFallback, type ResolvedCloudTasksConfig } from './internal/envFallback';
 
 /**
  * Configuration options for CloudTasksClient.
@@ -60,14 +61,20 @@ export interface CloudTasksClientOptions {
  */
 export class CloudTasksClient {
   private readonly native = getCloudBindings();
-  private readonly config;
+  private readonly nativeConfig;
+  private readonly resolvedConfig: ResolvedCloudTasksConfig;
   private closed = false;
 
   constructor(private readonly options: CloudTasksClientOptions) {
-    this.config = this.normalizeConfig(options);
+    const { nativeConfig, resolvedConfig } = this.normalizeConfig(options);
+    this.nativeConfig = nativeConfig;
+    this.resolvedConfig = resolvedConfig;
   }
 
-  private normalizeConfig(options: CloudTasksClientOptions) {
+  private normalizeConfig(options: CloudTasksClientOptions): {
+    nativeConfig: ReturnType<typeof toNativeConfig>;
+    resolvedConfig: ResolvedCloudTasksConfig;
+  } {
     const resolvedBaseUrl = (options.baseUrl?.trim()) ||
       process.env.CODEX_CLOUD_TASKS_BASE_URL ||
       'https://chatgpt.com/backend-api';
@@ -77,11 +84,22 @@ export class CloudTasksClient {
       ? options.mock
       : (process.env.CODEX_CLOUD_TASKS_MODE === 'mock' || process.env.CODEX_CLOUD_TASKS_MODE === 'MOCK');
 
-    return toNativeConfig({
+    const resolvedConfig: ResolvedCloudTasksConfig = {
+      baseUrl: resolvedBaseUrl,
+      bearerToken: options.bearerToken?.trim() || undefined,
+      chatGptAccountId: options.chatGptAccountId?.trim() || undefined,
+      userAgent: options.userAgent?.trim() || undefined,
+      mock: resolvedMock,
+      codexHome: options.codexHome?.trim() || process.env.CODEX_HOME || undefined,
+    };
+
+    const nativeConfig = toNativeConfig({
       ...options,
       baseUrl: resolvedBaseUrl,
       mock: resolvedMock,
     });
+
+    return { nativeConfig, resolvedConfig };
   }
 
   /**
@@ -113,7 +131,7 @@ export class CloudTasksClient {
   async listTasks(options?: ListTasksOptions): Promise<TaskSummary[]> {
     try {
       const env = options?.environmentId;
-      const list = await this.native.list(this.config, env);
+      const list = await this.native.list(this.nativeConfig, env);
       // limit/scope can be enforced client-side if needed
       const mapped = list.map(toTaskSummary);
       // Do not override environmentId client-side. If the backend does not
@@ -132,13 +150,12 @@ export class CloudTasksClient {
    */
   async listEnvironments(): Promise<EnvironmentInfo[]> {
     try {
-      const rows = await this.native.listEnvironments(this.config);
-      return rows.map(r => ({
-        id: r.id,
-        label: r.label,
-        isPinned: r.isPinned,
-        repoHints: r.repoHints,
-      }));
+      const nativeRows = await this.tryListEnvironmentsNative();
+      if (nativeRows) {
+        return nativeRows;
+      }
+      const fallback = await listEnvironmentsFallback(this.resolvedConfig);
+      return fallback;
     } catch (err) {
       throw toCloudTasksError(err);
     }
@@ -189,11 +206,16 @@ export class CloudTasksClient {
         throw new Error('environmentId, prompt and gitRef are required');
       }
       // Include both snake_case and camelCase keys for napi object mapping
-      const created = await this.native.create(this.config, {
+      const created = await this.native.create(this.nativeConfig, {
+        // Provide both camelCase and snake_case to satisfy NAPI struct mapping.
+        environmentId,
         environment_id: environmentId,
         prompt,
+        gitRef: gitRef,
         git_ref: gitRef,
+        qaMode: qaMode,
         qa_mode: qaMode,
+        bestOfN: bestOfN,
         best_of_n: bestOfN,
       });
       return created;
@@ -219,7 +241,7 @@ export class CloudTasksClient {
    */
   async getTaskDiff(taskId: string): Promise<string | null> {
     try {
-      return await this.native.getDiff(this.config, taskId);
+      return await this.native.getDiff(this.nativeConfig, taskId);
     } catch (err) {
       throw toCloudTasksError(err);
     }
@@ -240,7 +262,7 @@ export class CloudTasksClient {
    */
   async getTaskMessages(taskId: string): Promise<string[]> {
     try {
-      return await this.native.getMessages(this.config, taskId);
+      return await this.native.getMessages(this.nativeConfig, taskId);
     } catch (err) {
       throw toCloudTasksError(err);
     }
@@ -266,7 +288,7 @@ export class CloudTasksClient {
    */
   async getTaskText(taskId: string): Promise<TaskText> {
     try {
-      const n = await this.native.getText(this.config, taskId);
+      const n = await this.native.getText(this.nativeConfig, taskId);
       return toTaskText(n);
     } catch (err) {
       throw toCloudTasksError(err);
@@ -297,7 +319,7 @@ export class CloudTasksClient {
   async applyTaskPreflight(taskId: string, options?: ApplyOptions): Promise<ApplyOutcome> {
     try {
       const { diffOverride, preflight } = toNativeApplyParams(taskId, { ...options, dryRun: true });
-      const outcome = await this.native.apply(this.config, taskId, diffOverride, preflight);
+      const outcome = await this.native.apply(this.nativeConfig, taskId, diffOverride, preflight);
       return toApplyOutcome(outcome);
     } catch (err) {
       throw toCloudTasksError(err);
@@ -329,7 +351,7 @@ export class CloudTasksClient {
   async applyTask(taskId: string, options?: ApplyOptions): Promise<ApplyOutcome> {
     try {
       const { diffOverride, preflight } = toNativeApplyParams(taskId, options);
-      const outcome = await this.native.apply(this.config, taskId, diffOverride, preflight);
+      const outcome = await this.native.apply(this.nativeConfig, taskId, diffOverride, preflight);
       return toApplyOutcome(outcome);
     } catch (err) {
       throw toCloudTasksError(err);
@@ -361,7 +383,7 @@ export class CloudTasksClient {
    */
   async listSiblingAttempts(taskId: string, turnId: string): Promise<TurnAttempt[]> {
     try {
-      const list = await this.native.listAttempts(this.config, taskId, turnId);
+      const list = await this.native.listAttempts(this.nativeConfig, taskId, turnId);
       return list.map(toTurnAttempt);
     } catch (err) {
       throw toCloudTasksError(err);
@@ -388,5 +410,30 @@ export class CloudTasksClient {
       this.native?.close?.();
       this.closed = true;
     }
+  }
+
+  private async tryListEnvironmentsNative(): Promise<EnvironmentInfo[] | undefined> {
+    if (typeof this.native.listEnvironments !== 'function') {
+      return undefined;
+    }
+    try {
+      const rows = await this.native.listEnvironments(this.nativeConfig);
+      return rows.map(r => ({
+        id: r.id,
+        label: r.label,
+        isPinned: r.isPinned ?? (r as { is_pinned?: boolean }).is_pinned,
+        repoHints: r.repoHints ?? (r as { repo_hints?: string }).repo_hints,
+      }));
+    } catch (err) {
+      if (this.isUnimplementedError(err)) {
+        return undefined;
+      }
+      throw err;
+    }
+  }
+
+  private isUnimplementedError(err: unknown): boolean {
+    const message = err instanceof Error ? err.message : String(err);
+    return message.includes('UNIMPLEMENTED') || message.includes('not available') || message.includes('unsupported');
   }
 }
