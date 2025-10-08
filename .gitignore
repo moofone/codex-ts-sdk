@@ -14,14 +14,15 @@ dist/
 coverage/
 coverage_full.txt
 .vitest/
-*.node
-native/prebuilt/
 
-# Native codex-napi - ignore build artifacts, keep source files
+# Native binaries - ignore all .node files first
+*.node
+
+# Native codex-napi - ignore build artifacts, keep source files and index.node
 native/codex-napi/target/
-native/codex-napi/*.node
 !native/codex-napi/index.node
 native/codex-napi/npm/
+native/prebuilt/
 
 # Native binaries & artifacts
 codex-cli

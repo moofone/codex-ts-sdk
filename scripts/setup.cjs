@@ -120,7 +120,7 @@ if (existsSync(codexHome)) {
 // Step 2: Install dependencies
 console.log('Step 2: Installing dependencies...');
 try {
-  execSync('npm ci', { cwd: projectRoot, stdio: 'inherit' });
+  execSync('npm ci --ignore-scripts', { cwd: projectRoot, stdio: 'inherit' });
   console.log('✅ Dependencies installed\n');
 } catch (error) {
   console.error('❌ Failed to install dependencies');
@@ -141,6 +141,13 @@ try {
 console.log('Step 4: Building native N-API binding...');
 const nativeBindingDir = join(projectRoot, 'native', 'codex-napi');
 const indexNodePath = join(nativeBindingDir, 'index.node');
+
+if (!existsSync(nativeBindingDir)) {
+  console.error('❌ native/ directory is missing!');
+  console.error('   The native binding source files are required.');
+  console.error('   This appears to be a corrupted checkout.');
+  process.exit(1);
+}
 
 function updateNativeCargoTomlPaths() {
   try {

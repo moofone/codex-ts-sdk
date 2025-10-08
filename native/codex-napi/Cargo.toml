@@ -1,0 +1,27 @@
+[package]
+name = "codex_napi"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "3", features = ["tokio_rt"] }
+napi-derive = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.9"
+anyhow = "1"
+codex-core = { path = "/Users/greg/Dev/git/codex/codex-rs/core" }
+codex-protocol = { path = "/Users/greg/Dev/git/codex/codex-rs/protocol" }
+codex-cloud-tasks-client = { path = "/Users/greg/Dev/git/codex/codex-rs/cloud-tasks-client", features = ["mock", "online"] }
+base64 = "0.22"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+
+[build-dependencies]
+napi-build = "2"
+
+[features]
+default = []
