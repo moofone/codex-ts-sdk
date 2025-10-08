@@ -171,6 +171,11 @@ function updateNativeCargoTomlPaths() {
 }
 
 function ensureIndexNodeAlias(forceCopy = false) {
+  if (!existsSync(nativeBindingDir) || !existsSync(path.join(nativeBindingDir, 'Cargo.toml'))) {
+    console.error('❌ codex-ts-sdk native binding directory missing. Ensure native/codex-napi exists.');
+    process.exit(1);
+  }
+
   let candidates;
   try {
     candidates = readdirSync(nativeBindingDir).filter(
